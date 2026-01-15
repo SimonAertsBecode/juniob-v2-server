@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  db:
+    container_name: juniob-v2-db
+    image: postgres:15
+    restart: always
+    ports:
+      - ${PRISMA_PORT}:${PRISMA_PORT}
+    environment:
+      - POSTGRES_USER=${PRISMA_USERNAME}
+      - POSTGRES_PASSWORD=${PRISMA_PASSWORD}
+      - POSTGRES_DB=${PRISMA_DATABASE}
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data

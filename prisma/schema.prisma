@@ -1,0 +1,427 @@
+// Juniob V2 - Prisma Schema
+// Junior Developer Pre-Screening Platform with Two-Tier AI Analysis
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "./generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum InvitationStatus {
+  PENDING // Invitation sent, waiting for developer to register
+  ACCEPTED // Developer registered with this invitation
+  EXPIRED // Invitation link expired (7 days)
+  TRACKED // Company added email to track without sending formal invitation
+}
+
+enum AssessmentStatus {
+  REGISTERING // Account created but profile incomplete
+  PROJECTS_SUBMITTED // Projects submitted, waiting for analysis
+  ANALYZING // Tier 1 analysis in progress
+  PENDING_ANALYSIS // Developer modified/deleted project, needs regeneration
+  ASSESSED // All analyses complete, hiring report generated
+}
+
+enum ProjectType {
+  FRONTEND
+  BACKEND
+  FULLSTACK
+  MOBILE
+  OTHER
+}
+
+enum ProjectAnalysisStatus {
+  PENDING // Waiting to be analyzed
+  ANALYZING // Analysis in progress
+  COMPLETE // Analysis finished successfully
+  FAILED // Analysis failed
+}
+
+enum PipelineStage {
+  INVITED // Company sent invitation
+  REGISTERING // Developer started signup
+  PROJECTS_SUBMITTED // Projects submitted for analysis
+  ANALYZING // Analysis in progress
+  PENDING_ANALYSIS // Needs report regeneration
+  ASSESSED // Assessment complete
+  UNLOCKED // Company unlocked the report
+  HIRED // Candidate was hired
+  REJECTED // Candidate was rejected
+}
+
+enum CreditTransactionType {
+  INITIAL // 3 free credits on registration
+  PURCHASE // Bought credits via Stripe
+  UNLOCK_REPORT // Spent 1 credit to unlock developer report
+}
+
+enum HireRecommendation {
+  STRONG_HIRE
+  HIRE
+  CONSIDER
+  NOT_READY
+}
+
+enum JuniorLevel {
+  EARLY_JUNIOR // 0-6 months experience
+  MID_JUNIOR // 6-12 months experience
+  SENIOR_JUNIOR // 1-2 years experience
+}
+
+// ============================================
+// COMPANY MODELS
+// ============================================
+
+model Company {
+  id                 Int     @id @default(autoincrement())
+  email              String  @unique
+  hashedPassword     String
+  hashedRefreshToken String?
+
+  // Company info
+  name     String
+  industry String?
+  size     String? // e.g., "1-10", "11-50", "51-200", etc.
+  location String?
+  website  String?
+
+  // Billing info
+  vatNumber      String?
+  billingAddress String?
+  billingCountry String?
+
+  // Email verification
+  emailVerified          Boolean @default(false)
+  emailVerificationToken String?
+
+  // Settings
+  emailNotifications Boolean @default(true)
+
+  // Credits
+  creditBalance Int @default(3) // Start with 3 free credits
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  invitations        Invitation[]
+  creditTransactions CreditTransaction[]
+  pipelineEntries    PipelineEntry[]
+  collections        Collection[]
+  unlockedReports    UnlockedReport[]
+
+  @@index([email])
+}
+
+// ============================================
+// DEVELOPER MODELS
+// ============================================
+
+model Developer {
+  id                 Int     @id @default(autoincrement())
+  email              String  @unique
+  hashedPassword     String
+  hashedRefreshToken String?
+
+  // Profile info
+  firstName         String?
+  lastName          String?
+  location          String?
+  yearsOfExperience Int? // 0, 1, 2 for junior devs
+
+  // Education
+  degree         String?
+  university     String?
+  graduationYear Int?
+
+  // GitHub OAuth
+  githubUsername     String?
+  githubAccessToken  String? // Encrypted
+  githubAppInstalled Boolean @default(false)
+
+  // Assessment status
+  assessmentStatus AssessmentStatus @default(REGISTERING)
+
+  // Email verification
+  emailVerified          Boolean @default(false)
+  emailVerificationToken String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  invitation        Invitation? // Optional - dev may have registered without invitation
+  projects          TechnicalProject[]
+  hiringReport      HiringReport?
+  pipelineEntries   PipelineEntry[]
+  unlockedBy        UnlockedReport[]
+  collectionMembers CollectionMember[]
+
+  @@index([email])
+  @@index([assessmentStatus])
+}
+
+// ============================================
+// INVITATION SYSTEM
+// ============================================
+
+model Invitation {
+  id             Int              @id @default(autoincrement())
+  companyId      Int
+  candidateEmail String
+  token          String           @unique @default(uuid())
+  status         InvitationStatus @default(PENDING)
+
+  // Optional personal message from company
+  message String?
+
+  // Timestamps
+  expiresAt  DateTime // 7 days from creation
+  sentAt     DateTime? // When email was actually sent (null if just tracked)
+  acceptedAt DateTime? // When developer registered
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  company     Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  developer   Developer? @relation(fields: [developerId], references: [id])
+  developerId Int?       @unique // Set when developer registers with this invitation
+
+  @@index([companyId])
+  @@index([candidateEmail])
+  @@index([token])
+  @@index([status])
+}
+
+// ============================================
+// TECHNICAL ASSESSMENT - TWO-TIER AI SYSTEM
+// ============================================
+
+// Developer's GitHub project (max 3 per developer)
+model TechnicalProject {
+  id          Int @id @default(autoincrement())
+  developerId Int
+
+  // Project info
+  name        String // Display name (editable by dev)
+  githubUrl   String
+  projectType ProjectType
+  description String?
+
+  // Tech stack detected
+  techStack String[] // e.g., ["React", "TypeScript", "Node.js"]
+
+  // Lock system - 30 days minimum after analysis
+  savedAt     DateTime? // When project was saved/analyzed
+  lockedUntil DateTime? // savedAt + 30 days
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  developer Developer        @relation(fields: [developerId], references: [id], onDelete: Cascade)
+  analysis  ProjectAnalysis? // Tier 1 analysis
+
+  @@index([developerId])
+}
+
+// Tier 1: Individual Project Analysis (DEVELOPER CAN SEE)
+model ProjectAnalysis {
+  id        Int @id @default(autoincrement())
+  projectId Int @unique
+
+  // Analysis status
+  status ProjectAnalysisStatus @default(PENDING)
+
+  // Score
+  score Int? // 0-100
+
+  // Analysis results (developer can see these)
+  strengths           String[] // What the developer did well
+  areasForImprovement String[] // Constructive feedback for growth
+  codeOrganization    String? // Assessment of code structure
+  bestPractices       String[] // Best practices followed
+
+  // Raw analysis (for debugging/reference)
+  rawAnalysis Json?
+
+  // Error handling
+  errorMessage String? // If analysis failed
+  retryCount   Int     @default(0)
+
+  // Timestamps
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  project TechnicalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+}
+
+// Tier 2: Aggregate Hiring Report (COMPANY VIEW ONLY - after unlock)
+model HiringReport {
+  id          Int @id @default(autoincrement())
+  developerId Int @unique
+
+  // Overall assessment
+  overallScore Int // 0-100 (aggregate from all projects)
+  juniorLevel  JuniorLevel // Early, Mid, or Senior Junior
+
+  // Aggregate insights
+  aggregateStrengths  String[] // Patterns across all projects
+  aggregateWeaknesses String[] // Recurring gaps
+
+  // Interview preparation
+  interviewQuestions String[] // 5-10 recommended questions
+
+  // Onboarding guidance
+  onboardingAreas String[] // Technical skills to develop
+  mentoringNeeds  String[] // What support this dev needs
+
+  // Technical proficiency (JSON object with tech:score pairs)
+  // e.g., {"React": 7, "Node.js": 5, "TypeScript": 6}
+  techProficiency Json?
+
+  // Risk assessment
+  redFlags        String[] // Critical issues if any
+  growthPotential String? // Assessment of learning trajectory
+
+  // Final recommendation
+  recommendation HireRecommendation
+  conclusion     String // 2-3 sentence summary
+
+  // Raw analysis (for debugging)
+  rawAnalysis Json?
+
+  generatedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  developer Developer @relation(fields: [developerId], references: [id], onDelete: Cascade)
+
+  @@index([recommendation])
+}
+
+// ============================================
+// CREDIT SYSTEM
+// ============================================
+
+model CreditTransaction {
+  id        Int                   @id @default(autoincrement())
+  companyId Int
+  type      CreditTransactionType
+
+  // Transaction details
+  amount       Int // Positive for purchases, negative for unlocks
+  balanceAfter Int // Credit balance after this transaction
+
+  // Metadata
+  description String? // e.g., "Unlocked report for john@example.com"
+
+  // For PURCHASE type - Stripe info
+  stripePaymentIntentId String?
+  stripeSessionId       String?
+
+  // For UNLOCK_REPORT type - which developer was unlocked
+  unlockedDeveloperId Int?
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// Track which companies have unlocked which developers
+model UnlockedReport {
+  id          Int @id @default(autoincrement())
+  companyId   Int
+  developerId Int
+
+  unlockedAt DateTime @default(now())
+
+  // Relations
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  developer Developer @relation(fields: [developerId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, developerId]) // Each company can only unlock once per developer
+  @@index([companyId])
+  @@index([developerId])
+}
+
+// ============================================
+// PIPELINE & TRACKING
+// ============================================
+
+model PipelineEntry {
+  id          Int @id @default(autoincrement())
+  companyId   Int
+  developerId Int
+
+  stage PipelineStage @default(INVITED)
+
+  // Notes (company can add private notes about candidate)
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  developer Developer @relation(fields: [developerId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, developerId]) // One entry per company-developer pair
+  @@index([companyId])
+  @@index([developerId])
+  @@index([stage])
+}
+
+// ============================================
+// COLLECTIONS (Folders for organizing candidates)
+// ============================================
+
+model Collection {
+  id        Int    @id @default(autoincrement())
+  companyId Int
+  name      String // e.g., "Frontend for GetYourWay", "Backend interns"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  company Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  members CollectionMember[]
+
+  @@index([companyId])
+}
+
+model CollectionMember {
+  id           Int @id @default(autoincrement())
+  collectionId Int
+  developerId  Int
+
+  addedAt DateTime @default(now())
+
+  // Relations
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  developer  Developer  @relation(fields: [developerId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, developerId]) // Developer can only be in a collection once
+  @@index([collectionId])
+  @@index([developerId])
+}
