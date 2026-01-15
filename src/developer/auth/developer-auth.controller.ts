@@ -143,6 +143,31 @@ export class DeveloperAuthController {
     return this.authService.getMe(developerId);
   }
 
+  @Public()
+  @Post('verify-email')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Verify email address with token' })
+  @ApiResponse({ status: 200, description: 'Email verified successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid or expired token' })
+  async verifyEmail(
+    @Body('token') token: string,
+  ): Promise<{ message: string }> {
+    return this.authService.verifyEmail(token);
+  }
+
+  @UseGuards(AtGuard)
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Resend email verification' })
+  @ApiResponse({ status: 200, description: 'Verification email sent' })
+  @ApiResponse({ status: 400, description: 'Email already verified' })
+  async resendVerification(
+    @GetCurrentUserId() developerId: number,
+  ): Promise<{ message: string }> {
+    return this.authService.resendVerificationEmail(developerId);
+  }
+
   private setRefreshTokenCookie(res: Response, refreshToken: string): void {
     res.cookie('jwt', refreshToken, {
       httpOnly: true,

@@ -8,7 +8,9 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
+import * as crypto from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EmailService } from '../../email/email.service';
 import { Tokens } from '../../common/types';
 import {
   DeveloperSignupDto,
@@ -24,6 +26,7 @@ export class DeveloperAuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private config: ConfigService,
+    private emailService: EmailService,
   ) {}
 
   async signup(dto: DeveloperSignupDto): Promise<DeveloperAuthResult> {
@@ -76,6 +79,9 @@ export class DeveloperAuthService {
     // Hash the password
     const hashedPassword = await argon2.hash(dto.password);
 
+    // Generate email verification token
+    const emailVerificationToken = crypto.randomBytes(32).toString('hex');
+
     // Create the developer
     const developer = await this.prisma.developer.create({
       data: {
@@ -83,6 +89,7 @@ export class DeveloperAuthService {
         hashedPassword,
         firstName: dto.firstName,
         lastName: dto.lastName,
+        emailVerificationToken,
       },
     });
 
@@ -106,6 +113,15 @@ export class DeveloperAuthService {
         },
       });
     }
+
+    // Send verification email (don't await - send in background)
+    this.emailService
+      .sendVerificationEmail(
+        developer.email,
+        emailVerificationToken,
+        'developer',
+      )
+      .catch((err) => console.error('Failed to send verification email:', err));
 
     // Generate tokens
     const tokens = await this.generateTokens(
@@ -236,6 +252,63 @@ export class DeveloperAuthService {
       assessmentStatus: developer.assessmentStatus,
       githubAppInstalled: developer.githubAppInstalled,
     };
+  }
+
+  async verifyEmail(token: string): Promise<{ message: string }> {
+    const developer = await this.prisma.developer.findFirst({
+      where: { emailVerificationToken: token },
+    });
+
+    if (!developer) {
+      throw new BadRequestException('Invalid or expired verification token');
+    }
+
+    if (developer.emailVerified) {
+      return { message: 'Email already verified' };
+    }
+
+    await this.prisma.developer.update({
+      where: { id: developer.id },
+      data: {
+        emailVerified: true,
+        emailVerificationToken: null,
+      },
+    });
+
+    return { message: 'Email verified successfully' };
+  }
+
+  async resendVerificationEmail(
+    developerId: number,
+  ): Promise<{ message: string }> {
+    const developer = await this.prisma.developer.findUnique({
+      where: { id: developerId },
+    });
+
+    if (!developer) {
+      throw new UnauthorizedException('Developer not found');
+    }
+
+    if (developer.emailVerified) {
+      throw new BadRequestException('Email is already verified');
+    }
+
+    // Generate new verification token
+    const emailVerificationToken = crypto.randomBytes(32).toString('hex');
+
+    await this.prisma.developer.update({
+      where: { id: developer.id },
+      data: { emailVerificationToken },
+    });
+
+    // Send verification email
+    await this.emailService.sendVerificationEmail(
+      developer.email,
+      emailVerificationToken,
+      'developer',
+    );
+
+    return { message: 'Verification email sent' };
   }
 
   private async generateTokens(

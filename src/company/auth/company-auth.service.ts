@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -7,7 +8,9 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
+import * as crypto from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EmailService } from '../../email/email.service';
 import { Tokens } from '../../common/types';
 import {
   CompanySignupDto,
@@ -23,6 +26,7 @@ export class CompanyAuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private config: ConfigService,
+    private emailService: EmailService,
   ) {}
 
   async signup(dto: CompanySignupDto): Promise<CompanyAuthResult> {
@@ -38,6 +42,9 @@ export class CompanyAuthService {
     // Hash the password
     const hashedPassword = await argon2.hash(dto.password);
 
+    // Generate email verification token
+    const emailVerificationToken = crypto.randomBytes(32).toString('hex');
+
     // Create the company with initial credits
     const company = await this.prisma.company.create({
       data: {
@@ -45,6 +52,7 @@ export class CompanyAuthService {
         hashedPassword,
         name: dto.name,
         creditBalance: 3, // 3 free credits on registration
+        emailVerificationToken,
       },
     });
 
@@ -58,6 +66,11 @@ export class CompanyAuthService {
         description: 'Welcome bonus - 3 free credits',
       },
     });
+
+    // Send verification email (don't await - send in background)
+    this.emailService
+      .sendVerificationEmail(company.email, emailVerificationToken, 'company')
+      .catch((err) => console.error('Failed to send verification email:', err));
 
     // Generate tokens
     const tokens = await this.generateTokens(
@@ -182,6 +195,63 @@ export class CompanyAuthService {
       emailVerified: company.emailVerified,
       creditBalance: company.creditBalance,
     };
+  }
+
+  async verifyEmail(token: string): Promise<{ message: string }> {
+    const company = await this.prisma.company.findFirst({
+      where: { emailVerificationToken: token },
+    });
+
+    if (!company) {
+      throw new BadRequestException('Invalid or expired verification token');
+    }
+
+    if (company.emailVerified) {
+      return { message: 'Email already verified' };
+    }
+
+    await this.prisma.company.update({
+      where: { id: company.id },
+      data: {
+        emailVerified: true,
+        emailVerificationToken: null,
+      },
+    });
+
+    return { message: 'Email verified successfully' };
+  }
+
+  async resendVerificationEmail(
+    companyId: number,
+  ): Promise<{ message: string }> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+    });
+
+    if (!company) {
+      throw new UnauthorizedException('Company not found');
+    }
+
+    if (company.emailVerified) {
+      throw new BadRequestException('Email is already verified');
+    }
+
+    // Generate new verification token
+    const emailVerificationToken = crypto.randomBytes(32).toString('hex');
+
+    await this.prisma.company.update({
+      where: { id: company.id },
+      data: { emailVerificationToken },
+    });
+
+    // Send verification email
+    await this.emailService.sendVerificationEmail(
+      company.email,
+      emailVerificationToken,
+      'company',
+    );
+
+    return { message: 'Verification email sent' };
   }
 
   private async generateTokens(

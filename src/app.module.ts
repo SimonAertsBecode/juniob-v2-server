@@ -4,6 +4,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
 import { CompanyModule } from './company/company.module';
 import { DeveloperModule } from './developer/developer.module';
+import { EmailModule } from './email/email.module';
 import { AtGuard } from './common/guards';
 
 @Module({
@@ -13,6 +14,7 @@ import { AtGuard } from './common/guards';
       envFilePath: '.env',
     }),
     PrismaModule,
+    EmailModule,
     CompanyModule,
     DeveloperModule,
   ],
