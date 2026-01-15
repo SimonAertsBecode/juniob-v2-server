@@ -1,17 +1,40 @@
 import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { BadRequestException, ValidationPipe } from '@nestjs/common';
+import { SwaggerModule } from '@nestjs/swagger';
+import * as cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
+import { generateOpenAPIFile } from './main.openapi';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Global validation pipe
+  // Cookie parser for refresh tokens
+  app.use(cookieParser());
+
+  // Global validation pipe with custom error formatting
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
+      exceptionFactory: (errors) => {
+        const result = errors.reduce(
+          (acc, error) => {
+            if (!error?.constraints || typeof error.constraints !== 'object') {
+              return acc;
+            }
+            const errorMessage =
+              error.constraints[Object.keys(error.constraints)[0]];
+            return {
+              ...acc,
+              [error.property]: errorMessage,
+            };
+          },
+          {} as Record<string, string>,
+        );
+        return new BadRequestException(result);
+      },
     }),
   );
 
@@ -24,10 +47,17 @@ async function bootstrap() {
   // Global prefix for all routes
   app.setGlobalPrefix('api');
 
-  const port = process.env.PORT || 3001;
+  // Generate OpenAPI documentation in development
+  if (process.env.NODE_ENV === 'development') {
+    const document = await generateOpenAPIFile(app);
+    SwaggerModule.setup('docs', app, document);
+  }
+
+  const port = process.env.PORT || 3002;
   await app.listen(port);
 
   console.log(`Server running on http://localhost:${port}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 }
 
 void bootstrap();
