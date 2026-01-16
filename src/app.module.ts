@@ -20,8 +20,6 @@ import { AtGuard } from './common/guards';
   ],
   controllers: [],
   providers: [
-    // Global guard - all routes require authentication by default
-    // Use @Public() decorator to make routes public
     {
       provide: APP_GUARD,
       useClass: AtGuard,

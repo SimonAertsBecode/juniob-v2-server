@@ -27,7 +27,7 @@ import {
   GetCurrentUserId,
   GetCurrentUser,
 } from '../../common/decorators';
-import { AtGuard, RtGuard } from '../../common/guards';
+import { RtGuard } from '../../common/guards';
 
 @ApiTags('Developer Auth')
 @Controller('developer/auth')
@@ -79,7 +79,6 @@ export class DeveloperAuthController {
     return response;
   }
 
-  @UseGuards(AtGuard)
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth('access-token')
@@ -128,7 +127,6 @@ export class DeveloperAuthController {
     return { accessToken: tokens.accessToken };
   }
 
-  @UseGuards(AtGuard)
   @Get('me')
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Get current developer profile' })
@@ -155,7 +153,6 @@ export class DeveloperAuthController {
     return this.authService.verifyEmail(token);
   }
 
-  @UseGuards(AtGuard)
   @Post('resend-verification')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth('access-token')

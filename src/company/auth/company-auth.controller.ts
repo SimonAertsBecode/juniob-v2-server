@@ -27,7 +27,7 @@ import {
   GetCurrentUserId,
   GetCurrentUser,
 } from '../../common/decorators';
-import { AtGuard, RtGuard } from '../../common/guards';
+import { RtGuard } from '../../common/guards';
 
 @ApiTags('Company Auth')
 @Controller('company/auth')
@@ -78,7 +78,6 @@ export class CompanyAuthController {
     return response;
   }
 
-  @UseGuards(AtGuard)
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth('access-token')
@@ -127,7 +126,6 @@ export class CompanyAuthController {
     return { accessToken: tokens.accessToken };
   }
 
-  @UseGuards(AtGuard)
   @Get('me')
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Get current company profile' })
@@ -154,7 +152,6 @@ export class CompanyAuthController {
     return this.authService.verifyEmail(token);
   }
 
-  @UseGuards(AtGuard)
   @Post('resend-verification')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth('access-token')

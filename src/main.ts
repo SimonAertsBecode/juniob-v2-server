@@ -7,7 +7,9 @@ import { AppModule } from './app.module';
 import { generateOpenAPIFile } from './main.openapi';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    rawBody: true, // Required for Stripe webhook signature verification
+  });
 
   // Cookie parser for refresh tokens
   app.use(cookieParser());
