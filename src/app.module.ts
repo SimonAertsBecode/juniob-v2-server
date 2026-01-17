@@ -5,6 +5,8 @@ import { PrismaModule } from './prisma/prisma.module';
 import { CompanyModule } from './company/company.module';
 import { DeveloperModule } from './developer/developer.module';
 import { EmailModule } from './email/email.module';
+import { GithubModule } from './github/github.module';
+import { AiModule } from './ai/ai.module';
 import { AtGuard } from './common/guards';
 
 @Module({
@@ -15,6 +17,8 @@ import { AtGuard } from './common/guards';
     }),
     PrismaModule,
     EmailModule,
+    GithubModule,
+    AiModule,
     CompanyModule,
     DeveloperModule,
   ],

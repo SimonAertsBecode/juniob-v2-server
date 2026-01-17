@@ -9,7 +9,6 @@ import {
   Query,
   RawBodyRequest,
   Req,
-  UseGuards,
 } from '@nestjs/common';
 import { Request } from 'express';
 import {
