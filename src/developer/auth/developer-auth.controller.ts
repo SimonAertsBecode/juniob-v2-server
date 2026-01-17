@@ -21,6 +21,8 @@ import {
   DeveloperSignupDto,
   DeveloperSigninDto,
   DeveloperAuthResponseDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
 } from './dto';
 import {
   Public,
@@ -163,6 +165,28 @@ export class DeveloperAuthController {
     @GetCurrentUserId() developerId: number,
   ): Promise<{ message: string }> {
     return this.authService.resendVerificationEmail(developerId);
+  }
+
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Request password reset email' })
+  @ApiResponse({
+    status: 200,
+    description: 'Password reset email sent (if account exists)',
+  })
+  forgotPassword(@Body() dto: ForgotPasswordDto): Promise<{ message: string }> {
+    return this.authService.forgotPassword(dto);
+  }
+
+  @Public()
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reset password with token' })
+  @ApiResponse({ status: 200, description: 'Password reset successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid or expired token' })
+  resetPassword(@Body() dto: ResetPasswordDto): Promise<{ message: string }> {
+    return this.authService.resetPassword(dto);
   }
 
   private setRefreshTokenCookie(res: Response, refreshToken: string): void {

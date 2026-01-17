@@ -101,6 +101,10 @@ model Company {
   emailVerified          Boolean @default(false)
   emailVerificationToken String?
 
+  // Password reset
+  passwordResetToken     String?
+  passwordResetExpiresAt DateTime?
+
   // Settings
   emailNotifications Boolean @default(true)
 
@@ -147,6 +151,10 @@ model Developer {
   // Email verification
   emailVerified          Boolean @default(false)
   emailVerificationToken String?
+
+  // Password reset
+  passwordResetToken     String?
+  passwordResetExpiresAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

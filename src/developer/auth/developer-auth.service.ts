@@ -17,6 +17,8 @@ import {
   DeveloperSigninDto,
   DeveloperAuthResponseDto,
   DeveloperAuthResult,
+  ForgotPasswordDto,
+  ResetPasswordDto,
 } from './dto';
 import { InvitationStatus } from '../../../prisma/generated/prisma';
 
@@ -306,6 +308,78 @@ export class DeveloperAuthService {
     );
 
     return { message: 'Verification email sent' };
+  }
+
+  async forgotPassword(dto: ForgotPasswordDto): Promise<{ message: string }> {
+    const developer = await this.prisma.developer.findUnique({
+      where: { email: dto.email.toLowerCase() },
+    });
+
+    // Always return success message to prevent email enumeration
+    if (!developer) {
+      return {
+        message:
+          'If an account with that email exists, a password reset link has been sent',
+      };
+    }
+
+    // Generate reset token (64 char hex)
+    const passwordResetToken = crypto.randomBytes(32).toString('hex');
+
+    // Token expires in 1 hour
+    const passwordResetExpiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+    await this.prisma.developer.update({
+      where: { id: developer.id },
+      data: {
+        passwordResetToken,
+        passwordResetExpiresAt,
+      },
+    });
+
+    // Send reset email (don't await - send in background)
+    this.emailService
+      .sendPasswordResetEmail(developer.email, passwordResetToken)
+      .catch((err) =>
+        console.error('Failed to send password reset email:', err),
+      );
+
+    return {
+      message:
+        'If an account with that email exists, a password reset link has been sent',
+    };
+  }
+
+  async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
+    const developer = await this.prisma.developer.findFirst({
+      where: {
+        passwordResetToken: dto.token,
+        passwordResetExpiresAt: {
+          gte: new Date(),
+        },
+      },
+    });
+
+    if (!developer) {
+      throw new BadRequestException('Invalid or expired reset token');
+    }
+
+    // Hash the new password
+    const hashedPassword = await argon2.hash(dto.newPassword);
+
+    // Update password and clear reset token
+    await this.prisma.developer.update({
+      where: { id: developer.id },
+      data: {
+        hashedPassword,
+        passwordResetToken: null,
+        passwordResetExpiresAt: null,
+        // Also clear refresh token to force re-login on all devices
+        hashedRefreshToken: null,
+      },
+    });
+
+    return { message: 'Password reset successfully' };
   }
 
   private async generateTokens(
