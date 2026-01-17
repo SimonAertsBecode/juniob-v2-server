@@ -142,7 +142,6 @@ export class DeveloperAuthService {
       lastName: developer.lastName,
       emailVerified: developer.emailVerified,
       assessmentStatus: developer.assessmentStatus,
-      githubAppInstalled: developer.githubAppInstalled,
     };
   }
 
@@ -185,7 +184,6 @@ export class DeveloperAuthService {
       lastName: developer.lastName,
       emailVerified: developer.emailVerified,
       assessmentStatus: developer.assessmentStatus,
-      githubAppInstalled: developer.githubAppInstalled,
     };
   }
 
@@ -250,7 +248,6 @@ export class DeveloperAuthService {
       lastName: developer.lastName,
       emailVerified: developer.emailVerified,
       assessmentStatus: developer.assessmentStatus,
-      githubAppInstalled: developer.githubAppInstalled,
     };
   }
 

@@ -141,11 +141,6 @@ model Developer {
   university     String?
   graduationYear Int?
 
-  // GitHub OAuth
-  githubUsername     String?
-  githubAccessToken  String? // Encrypted
-  githubAppInstalled Boolean @default(false)
-
   // Assessment status
   assessmentStatus AssessmentStatus @default(REGISTERING)
 
@@ -157,15 +152,57 @@ model Developer {
   updatedAt DateTime @updatedAt
 
   // Relations
-  invitation        Invitation? // Optional - dev may have registered without invitation
-  projects          TechnicalProject[]
-  hiringReport      HiringReport?
-  pipelineEntries   PipelineEntry[]
-  unlockedBy        UnlockedReport[]
-  collectionMembers CollectionMember[]
+  invitation           Invitation? // Optional - dev may have registered without invitation
+  projects             TechnicalProject[]
+  hiringReport         HiringReport?
+  pipelineEntries      PipelineEntry[]
+  unlockedBy           UnlockedReport[]
+  collectionMembers    CollectionMember[]
+  githubInstallations  GithubAppInstallation[]
 
   @@index([email])
   @@index([assessmentStatus])
+}
+
+// ============================================
+// GITHUB APP INTEGRATION
+// ============================================
+
+model GithubAppInstallation {
+  id                   String   @id @default(uuid())
+  developerId          Int
+  installationId       String   // GitHub App installation ID
+  accessTokenEncrypted String?  // AES-256-CBC encrypted token
+  tokenExpiresAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  developer    Developer             @relation(fields: [developerId], references: [id], onDelete: Cascade)
+  repositories GithubAppRepository[]
+
+  @@unique([developerId, installationId])
+  @@index([developerId])
+}
+
+model GithubAppRepository {
+  id             String  @id @default(uuid())
+  installationId String
+  githubRepoId   BigInt  // GitHub's repository ID
+  repoName       String  // e.g., "my-project"
+  repoFullName   String  // e.g., "username/my-project"
+  description    String?
+  isPrivate      Boolean
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  installation GithubAppInstallation @relation(fields: [installationId], references: [id], onDelete: Cascade)
+
+  @@unique([installationId, githubRepoId])
+  @@index([installationId])
+  @@index([repoFullName])
 }
 
 // ============================================

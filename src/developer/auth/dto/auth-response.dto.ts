@@ -54,11 +54,4 @@ export class DeveloperAuthResponseDto {
   })
   @IsEnum(AssessmentStatus)
   assessmentStatus: AssessmentStatus;
-
-  @ApiProperty({
-    description: 'Whether GitHub App is installed/connected',
-    example: false,
-  })
-  @IsBoolean()
-  githubAppInstalled: boolean;
 }

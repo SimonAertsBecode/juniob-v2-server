@@ -1,9 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ProjectType } from './create-project.dto';
+import {
+  ProjectType,
+  ProjectAnalysisStatus,
+} from '../../../../prisma/generated/prisma';
 
 export class ProjectAnalysisResponseDto {
-  @ApiProperty({ description: 'Analysis status' })
-  status: 'PENDING' | 'ANALYZING' | 'COMPLETE' | 'FAILED';
+  @ApiProperty({ description: 'Analysis status', enum: ProjectAnalysisStatus })
+  status: ProjectAnalysisStatus;
 
   @ApiPropertyOptional({ description: 'Score (0-100)' })
   score?: number;

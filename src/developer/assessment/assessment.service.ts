@@ -5,11 +5,17 @@ import {
   NotFoundException,
   ForbiddenException,
   ConflictException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
-import { GithubService } from '../../github/github.service';
-import { AiService } from '../../ai/ai.service';
+import { GithubService, RepoFile } from '../../github/github.service';
+import { GithubAppService } from '../../github/github-app.service';
+import {
+  AiService,
+  ProjectAnalysisResult,
+  HiringReportResult,
+} from '../../ai/ai.service';
 import {
   CreateProjectDto,
   ProjectResponseDto,
@@ -20,10 +26,40 @@ import {
   AssessmentStatus,
   ProjectAnalysisStatus,
   ProjectType,
+  TechnicalProject,
+  ProjectAnalysis,
+  HireRecommendation,
+  JuniorLevel,
 } from '../../../prisma/generated/prisma';
 
 const MAX_PROJECTS = 3;
 const LOCK_DAYS = 30;
+
+// Type for project with analysis included
+interface ProjectWithAnalysis extends TechnicalProject {
+  analysis: ProjectAnalysis | null;
+}
+
+// Error type for catch blocks
+interface ErrorWithMessage {
+  message: string;
+}
+
+function isErrorWithMessage(error: unknown): error is ErrorWithMessage {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'message' in error &&
+    typeof (error as Record<string, unknown>).message === 'string'
+  );
+}
+
+function getErrorMessage(error: unknown): string {
+  if (isErrorWithMessage(error)) {
+    return error.message;
+  }
+  return String(error);
+}
 
 @Injectable()
 export class AssessmentService {
@@ -32,6 +68,7 @@ export class AssessmentService {
   constructor(
     private prisma: PrismaService,
     private githubService: GithubService,
+    private githubAppService: GithubAppService,
     private aiService: AiService,
   ) {}
 
@@ -89,8 +126,40 @@ export class AssessmentService {
       );
     }
 
+    // Check if developer has GitHub App installed
+    const hasInstallation =
+      await this.githubAppService.hasInstallation(developerId);
+    if (!hasInstallation) {
+      throw new UnauthorizedException(
+        'Please connect your GitHub account first. Go to Settings > GitHub to install the Juniob GitHub App.',
+      );
+    }
+
+    // Check if repository is in the authorized list
+    const repoFullName = this.githubService.getRepoFullName(dto.githubUrl);
+    const isAuthorized = await this.githubAppService.isRepositoryAuthorized(
+      developerId,
+      repoFullName,
+    );
+
+    if (!isAuthorized) {
+      throw new ForbiddenException(
+        `Repository "${repoFullName}" is not authorized. Please add it to your Juniob GitHub App installation.`,
+      );
+    }
+
+    // Get authenticated Octokit
+    const octokit =
+      await this.githubAppService.getAuthenticatedOctokit(developerId);
+    if (!octokit) {
+      throw new UnauthorizedException(
+        'Failed to authenticate with GitHub. Please reconnect your GitHub account.',
+      );
+    }
+
     // Validate GitHub repository
     const { owner, repo } = await this.githubService.validateRepository(
+      octokit,
       dto.githubUrl,
     );
 
@@ -104,7 +173,11 @@ export class AssessmentService {
     }
 
     // Get languages for initial tech stack
-    const languages = await this.githubService.listRepoLanguages(owner, repo);
+    const languages = await this.githubService.listRepoLanguages(
+      octokit,
+      owner,
+      repo,
+    );
 
     // Create project with pending analysis
     const project = await this.prisma.technicalProject.create({
@@ -314,16 +387,16 @@ export class AssessmentService {
 
   /**
    * Process pending project analyses (every 5 minutes)
+   * Only picks up PENDING projects - ANALYZING means already in progress
    */
   @Cron(CronExpression.EVERY_5_MINUTES)
   async processAnalysisQueue(): Promise<void> {
     this.logger.log('Checking for projects pending analysis...');
 
+    // Only query for PENDING status - ANALYZING means already being processed
     const pendingAnalyses = await this.prisma.projectAnalysis.findMany({
       where: {
-        status: {
-          in: [ProjectAnalysisStatus.PENDING, ProjectAnalysisStatus.ANALYZING],
-        },
+        status: ProjectAnalysisStatus.PENDING,
       },
       include: {
         project: {
@@ -350,9 +423,9 @@ export class AssessmentService {
 
         // Rate limit protection
         await new Promise((resolve) => setTimeout(resolve, 3000));
-      } catch (error: any) {
+      } catch (error: unknown) {
         this.logger.error(
-          `Failed to analyze project ${analysis.projectId}: ${error.message}`,
+          `Failed to analyze project ${analysis.projectId}: ${getErrorMessage(error)}`,
         );
       }
     }
@@ -389,9 +462,9 @@ export class AssessmentService {
       if (allAnalyzed && developer.projects.length > 0) {
         try {
           await this.generateHiringReport(developer.id);
-        } catch (error: any) {
+        } catch (error: unknown) {
           this.logger.error(
-            `Failed to generate hiring report for developer ${developer.id}: ${error.message}`,
+            `Failed to generate hiring report for developer ${developer.id}: ${getErrorMessage(error)}`,
           );
         }
       }
@@ -428,8 +501,20 @@ export class AssessmentService {
     });
 
     try {
+      // Get authenticated Octokit for the developer
+      const octokit = await this.githubAppService.getAuthenticatedOctokit(
+        project.developerId,
+      );
+
+      if (!octokit) {
+        throw new Error(
+          'GitHub App not installed or token expired. Developer needs to reconnect.',
+        );
+      }
+
       // Fetch repository files
       const files = await this.githubService.fetchRepositoryStructure(
+        octokit,
         project.githubUrl,
       );
 
@@ -448,7 +533,7 @@ export class AssessmentService {
       const MAX_FILES = 75;
 
       let totalSize = 0;
-      const filesToAnalyze = [];
+      const filesToAnalyze: RepoFile[] = [];
 
       for (const file of sortedFiles) {
         if (filesToAnalyze.length >= MAX_FILES) break;
@@ -473,14 +558,18 @@ export class AssessmentService {
       const { owner, repo } = this.githubService.parseGithubUrl(
         project.githubUrl,
       );
-      const languages = await this.githubService.listRepoLanguages(owner, repo);
+      const languages = await this.githubService.listRepoLanguages(
+        octokit,
+        owner,
+        repo,
+      );
 
       // Detect fullstack
       const isFullstackByStructure =
         this.githubService.detectFullstackByStructure(files);
 
       // Analyze with AI
-      const result = await this.aiService.analyzeProject(
+      const result: ProjectAnalysisResult = await this.aiService.analyzeProject(
         codeSnippets,
         filesToAnalyze.length,
         {
@@ -515,8 +604,8 @@ export class AssessmentService {
           strengths: result.strengths,
           areasForImprovement: result.weaknesses,
           codeOrganization: result.codeOrganization,
-          bestPractices: [], // Can be extracted from strengths
-          rawAnalysis: result as any,
+          bestPractices: [],
+          rawAnalysis: JSON.parse(JSON.stringify(result)),
           completedAt: now,
           retryCount: 0,
         },
@@ -525,13 +614,14 @@ export class AssessmentService {
       this.logger.log(
         `Successfully analyzed project ${projectId} (score: ${result.score})`,
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       const analysis = await this.prisma.projectAnalysis.findUnique({
         where: { projectId },
       });
 
       const newRetryCount = (analysis?.retryCount || 0) + 1;
       const maxRetries = 3;
+      const errorMessage = getErrorMessage(error);
 
       if (newRetryCount < maxRetries) {
         await this.prisma.projectAnalysis.update({
@@ -539,7 +629,7 @@ export class AssessmentService {
           data: {
             status: ProjectAnalysisStatus.PENDING,
             retryCount: newRetryCount,
-            errorMessage: error.message,
+            errorMessage,
           },
         });
         this.logger.warn(
@@ -551,7 +641,7 @@ export class AssessmentService {
           data: {
             status: ProjectAnalysisStatus.FAILED,
             retryCount: newRetryCount,
-            errorMessage: error.message,
+            errorMessage,
           },
         });
         this.logger.error(
@@ -598,31 +688,34 @@ export class AssessmentService {
       `Generating hiring report for developer ${developerId} with ${projectsData.length} projects`,
     );
 
-    const report = await this.aiService.generateHiringReport(projectsData, {
-      firstName: developer.firstName || undefined,
-      lastName: developer.lastName || undefined,
-      yearsOfExperience: developer.yearsOfExperience || undefined,
-    });
+    const report: HiringReportResult =
+      await this.aiService.generateHiringReport(projectsData, {
+        firstName: developer.firstName || undefined,
+        lastName: developer.lastName || undefined,
+        yearsOfExperience: developer.yearsOfExperience || undefined,
+      });
 
     // Map recommendation to HireRecommendation enum
-    const recommendationMap: Record<string, string> = {
-      SAFE_TO_INTERVIEW: 'STRONG_HIRE',
-      INTERVIEW_WITH_CAUTION: 'CONSIDER',
-      NOT_READY: 'NOT_READY',
+    const recommendationMap: Record<string, HireRecommendation> = {
+      SAFE_TO_INTERVIEW: HireRecommendation.STRONG_HIRE,
+      INTERVIEW_WITH_CAUTION: HireRecommendation.CONSIDER,
+      NOT_READY: HireRecommendation.NOT_READY,
     };
 
-    const juniorLevelMap: Record<string, string> = {
-      ABOVE_EXPECTED: 'SENIOR_JUNIOR',
-      WITHIN_EXPECTED: 'MID_JUNIOR',
-      BELOW_EXPECTED: 'EARLY_JUNIOR',
+    const juniorLevelMap: Record<string, JuniorLevel> = {
+      ABOVE_EXPECTED: JuniorLevel.SENIOR_JUNIOR,
+      WITHIN_EXPECTED: JuniorLevel.MID_JUNIOR,
+      BELOW_EXPECTED: JuniorLevel.EARLY_JUNIOR,
     };
+
+    const rawReportJson = JSON.parse(JSON.stringify(report));
 
     await this.prisma.hiringReport.upsert({
       where: { developerId },
       create: {
         developerId,
         overallScore: report.overallScore,
-        juniorLevel: juniorLevelMap[report.juniorLevel] as any,
+        juniorLevel: juniorLevelMap[report.juniorLevel],
         aggregateStrengths: report.recommendationReasons,
         aggregateWeaknesses: report.riskFlags,
         interviewQuestions: report.interviewQuestions,
@@ -631,13 +724,13 @@ export class AssessmentService {
         techProficiency: report.techProficiency,
         redFlags: report.riskFlags,
         growthPotential: report.growthPotential,
-        recommendation: recommendationMap[report.recommendation] as any,
+        recommendation: recommendationMap[report.recommendation],
         conclusion: report.conclusion,
-        rawAnalysis: report as any,
+        rawAnalysis: rawReportJson,
       },
       update: {
         overallScore: report.overallScore,
-        juniorLevel: juniorLevelMap[report.juniorLevel] as any,
+        juniorLevel: juniorLevelMap[report.juniorLevel],
         aggregateStrengths: report.recommendationReasons,
         aggregateWeaknesses: report.riskFlags,
         interviewQuestions: report.interviewQuestions,
@@ -646,9 +739,9 @@ export class AssessmentService {
         techProficiency: report.techProficiency,
         redFlags: report.riskFlags,
         growthPotential: report.growthPotential,
-        recommendation: recommendationMap[report.recommendation] as any,
+        recommendation: recommendationMap[report.recommendation],
         conclusion: report.conclusion,
-        rawAnalysis: report as any,
+        rawAnalysis: rawReportJson,
       },
     });
 
@@ -725,7 +818,9 @@ export class AssessmentService {
     return new Date() < lockedUntil;
   }
 
-  private mapProjectToResponse(project: any): ProjectResponseDto {
+  private mapProjectToResponse(
+    project: ProjectWithAnalysis,
+  ): ProjectResponseDto {
     const isLocked = this.isProjectLocked(project.lockedUntil);
     const lockDaysRemaining =
       isLocked && project.lockedUntil
@@ -740,21 +835,21 @@ export class AssessmentService {
       name: project.name,
       githubUrl: project.githubUrl,
       projectType: project.projectType,
-      description: project.description,
+      description: project.description ?? undefined,
       techStack: project.techStack || [],
-      savedAt: project.savedAt,
-      lockedUntil: project.lockedUntil,
+      savedAt: project.savedAt ?? undefined,
+      lockedUntil: project.lockedUntil ?? undefined,
       isLocked,
       lockDaysRemaining,
       analysis: project.analysis
         ? {
             status: project.analysis.status,
-            score: project.analysis.score,
+            score: project.analysis.score ?? undefined,
             strengths: project.analysis.strengths,
             areasForImprovement: project.analysis.areasForImprovement,
-            codeOrganization: project.analysis.codeOrganization,
+            codeOrganization: project.analysis.codeOrganization ?? undefined,
             bestPractices: project.analysis.bestPractices,
-            errorMessage: project.analysis.errorMessage,
+            errorMessage: project.analysis.errorMessage ?? undefined,
           }
         : undefined,
       createdAt: project.createdAt,
