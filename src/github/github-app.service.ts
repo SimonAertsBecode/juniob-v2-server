@@ -117,7 +117,7 @@ export class GithubAppService {
             : `GitHub App updated successfully with ${repositories.length} repositories`,
         repositoryCount: repositories.length,
       };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Failed to set up GitHub App installation: ${error}`);
 
       if (error instanceof BadRequestException) {
@@ -146,14 +146,16 @@ export class GithubAppService {
       return [];
     }
 
-    return installation.repositories.map((repo) => ({
-      id: Number(repo.githubRepoId),
-      name: repo.repoName,
-      fullName: repo.repoFullName,
-      url: `https://github.com/${repo.repoFullName}`,
-      isPrivate: repo.isPrivate,
-      description: repo.description,
-    }));
+    return installation.repositories.map(
+      (repo): GithubRepositoryInfo => ({
+        id: Number(repo.githubRepoId),
+        name: repo.repoName,
+        fullName: repo.repoFullName,
+        url: `https://github.com/${repo.repoFullName}`,
+        isPrivate: repo.isPrivate,
+        description: repo.description,
+      }),
+    );
   }
 
   /**
@@ -212,7 +214,7 @@ export class GithubAppService {
         });
 
         return new Octokit({ auth: tokenData.token });
-      } catch (error) {
+      } catch (error: any) {
         this.logger.error(`Failed to refresh token: ${error}`);
         return null;
       }

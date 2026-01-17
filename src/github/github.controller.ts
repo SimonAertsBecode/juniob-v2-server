@@ -40,7 +40,8 @@ export class GithubController {
   async getStatus(
     @GetCurrentUserId() developerId: number,
   ): Promise<GithubStatusResponseDto> {
-    const isConnected = await this.githubAppService.hasInstallation(developerId);
+    const isConnected =
+      await this.githubAppService.hasInstallation(developerId);
 
     if (!isConnected) {
       return { isConnected: false };
