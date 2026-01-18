@@ -135,15 +135,9 @@ model Developer {
   hashedRefreshToken String?
 
   // Profile info
-  firstName         String?
-  lastName          String?
-  location          String?
-  yearsOfExperience Int? // 0, 1, 2 for junior devs
-
-  // Education
-  degree         String?
-  university     String?
-  graduationYear Int?
+  firstName String?
+  lastName  String?
+  location  String?
 
   // Assessment status
   assessmentStatus AssessmentStatus @default(REGISTERING)
@@ -167,9 +161,28 @@ model Developer {
   unlockedBy           UnlockedReport[]
   collectionMembers    CollectionMember[]
   githubInstallations  GithubAppInstallation[]
+  techExperiences      TechExperience[]
 
   @@index([email])
   @@index([assessmentStatus])
+}
+
+// Developer's experience per technology stack
+// Used to calibrate AI analysis based on experience level
+model TechExperience {
+  id          Int    @id @default(autoincrement())
+  developerId Int
+  stackName   String // e.g., "React.js", "Node.js", "TypeScript"
+  months      Int    // Experience in months (e.g., 4 = 4 months, 24 = 2 years)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  developer Developer @relation(fields: [developerId], references: [id], onDelete: Cascade)
+
+  @@unique([developerId, stackName]) // One entry per stack per developer
+  @@index([developerId])
 }
 
 // ============================================

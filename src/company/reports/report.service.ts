@@ -110,7 +110,6 @@ export class ReportService {
       overallScore: developer.hiringReport.overallScore,
       projectCount: developer.projects.length,
       techStack,
-      yearsOfExperience: developer.yearsOfExperience,
       juniorLevel: developer.hiringReport.juniorLevel,
       projects,
       isUnlocked,
@@ -235,6 +234,9 @@ export class ReportService {
           },
         },
         hiringReport: true,
+        techExperiences: {
+          orderBy: { months: 'desc' },
+        },
       },
     });
 
@@ -253,10 +255,10 @@ export class ReportService {
       firstName: developer.firstName,
       lastName: developer.lastName,
       location: developer.location,
-      yearsOfExperience: developer.yearsOfExperience,
-      degree: developer.degree,
-      university: developer.university,
-      graduationYear: developer.graduationYear,
+      techExperiences: developer.techExperiences.map((exp) => ({
+        stackName: exp.stackName,
+        months: exp.months,
+      })),
     };
 
     // Map project analyses

@@ -18,10 +18,15 @@ interface ProjectAnalysisData {
   techStack: string[];
 }
 
+interface TechExperience {
+  stackName: string;
+  months: number;
+}
+
 interface DeveloperProfile {
   firstName?: string;
   lastName?: string;
-  yearsOfExperience?: number;
+  techExperiences?: TechExperience[];
 }
 
 export const generateHiringReportPrompt = (
@@ -53,6 +58,17 @@ ${project.weaknesses.map((w) => `    <item>${w}</item>`).join('\n')}
     projects.reduce((sum, p) => sum + p.score, 0) / projects.length,
   );
 
+  // Format tech experiences for the prompt
+  const techExperiencesSection =
+    developerProfile.techExperiences &&
+    developerProfile.techExperiences.length > 0
+      ? developerProfile.techExperiences
+          .map(
+            (exp) => `<tech name="${exp.stackName}" months="${exp.months}" />`,
+          )
+          .join('\n')
+      : '    <none>No tech experiences specified</none>';
+
   return `You are a senior technical advisor providing hiring recommendations for JUNIOR DEVELOPERS (0-3 years of experience).
 
 <core_principle>
@@ -64,10 +80,19 @@ If a section does not reduce risk, uncertainty, or explanation effort, it should
 
 <developer_profile>
   <name>${developerProfile.firstName || 'Unknown'} ${developerProfile.lastName || ''}</name>
-  <years_of_experience>${developerProfile.yearsOfExperience ?? 'Not specified'}</years_of_experience>
   <projects_analyzed>${projects.length}</projects_analyzed>
   <average_project_score>${avgScore}</average_project_score>
+  <self_reported_tech_experience>
+${techExperiencesSection}
+  </self_reported_tech_experience>
 </developer_profile>
+
+<important_context>
+The tech experience above is SELF-REPORTED by the developer (in months). Use this to:
+1. Calibrate your expectations - a developer claiming 4 months of React experience should be evaluated differently than one claiming 24 months
+2. Identify potential mismatches between claimed experience and demonstrated skill level
+3. If claimed experience seems inconsistent with code quality, note this in the authenticity section
+</important_context>
 
 <analyzed_projects count="${projects.length}">
 ${projectsSection}

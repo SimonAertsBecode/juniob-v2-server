@@ -51,6 +51,17 @@ export class ProjectAnalysisDto {
 }
 
 /**
+ * Technology experience for report
+ */
+export class TechExperienceReportDto {
+  @ApiProperty({ description: 'Stack name', example: 'React.js' })
+  stackName: string;
+
+  @ApiProperty({ description: 'Experience in months', example: 12 })
+  months: number;
+}
+
+/**
  * Developer profile information
  */
 export class DeveloperProfileDto {
@@ -69,17 +80,11 @@ export class DeveloperProfileDto {
   @ApiProperty({ description: 'Location', nullable: true })
   location: string | null;
 
-  @ApiProperty({ description: 'Years of experience', nullable: true })
-  yearsOfExperience: number | null;
-
-  @ApiProperty({ description: 'Degree', nullable: true })
-  degree: string | null;
-
-  @ApiProperty({ description: 'University', nullable: true })
-  university: string | null;
-
-  @ApiProperty({ description: 'Graduation year', nullable: true })
-  graduationYear: number | null;
+  @ApiProperty({
+    description: 'Technology experiences (self-reported)',
+    type: [TechExperienceReportDto],
+  })
+  techExperiences: TechExperienceReportDto[];
 }
 
 /**

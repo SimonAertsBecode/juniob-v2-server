@@ -658,6 +658,7 @@ export class AssessmentService {
       where: { id: developerId },
       include: {
         projects: { include: { analysis: true } },
+        techExperiences: true,
       },
     });
 
@@ -692,7 +693,10 @@ export class AssessmentService {
       await this.aiService.generateHiringReport(projectsData, {
         firstName: developer.firstName || undefined,
         lastName: developer.lastName || undefined,
-        yearsOfExperience: developer.yearsOfExperience || undefined,
+        techExperiences: developer.techExperiences.map((exp) => ({
+          stackName: exp.stackName,
+          months: exp.months,
+        })),
       });
 
     // Map recommendation to HireRecommendation enum

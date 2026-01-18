@@ -183,7 +183,7 @@ export class AiService {
     developerProfile: {
       firstName?: string;
       lastName?: string;
-      yearsOfExperience?: number;
+      techExperiences?: Array<{ stackName: string; months: number }>;
     },
   ): Promise<HiringReportResult> {
     const prompt = generateHiringReportPrompt(projects, developerProfile);

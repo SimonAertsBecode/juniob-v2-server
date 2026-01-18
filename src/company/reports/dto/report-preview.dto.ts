@@ -48,9 +48,6 @@ export class ReportPreviewDto {
   })
   techStack: string[];
 
-  @ApiProperty({ description: 'Years of experience', nullable: true })
-  yearsOfExperience: number | null;
-
   @ApiProperty({
     description: 'Junior level assessment',
     example: 'MID_JUNIOR',
