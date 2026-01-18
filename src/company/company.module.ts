@@ -3,9 +3,25 @@ import { CompanyAuthModule } from './auth/company-auth.module';
 import { CreditModule } from './credits/credit.module';
 import { InvitationModule } from './invitations/invitation.module';
 import { ReportModule } from './reports/report.module';
+import { PipelineModule } from './pipeline/pipeline.module';
+import { CollectionModule } from './collections/collection.module';
 
 @Module({
-  imports: [CompanyAuthModule, CreditModule, InvitationModule, ReportModule],
-  exports: [CompanyAuthModule, CreditModule, InvitationModule, ReportModule],
+  imports: [
+    CompanyAuthModule,
+    CreditModule,
+    InvitationModule,
+    ReportModule,
+    PipelineModule,
+    CollectionModule,
+  ],
+  exports: [
+    CompanyAuthModule,
+    CreditModule,
+    InvitationModule,
+    ReportModule,
+    PipelineModule,
+    CollectionModule,
+  ],
 })
 export class CompanyModule {}
