@@ -102,7 +102,7 @@ export class DeveloperAuthService {
         data: {
           status: InvitationStatus.ACCEPTED,
           acceptedAt: new Date(),
-          developerId: developer.id,
+          id: developer.id,
         },
       });
 
@@ -138,7 +138,7 @@ export class DeveloperAuthService {
     return {
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
-      developerId: developer.id,
+      id: developer.id,
       email: developer.email,
       firstName: developer.firstName,
       lastName: developer.lastName,
@@ -180,7 +180,7 @@ export class DeveloperAuthService {
     return {
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
-      developerId: developer.id,
+      id: developer.id,
       email: developer.email,
       firstName: developer.firstName,
       lastName: developer.lastName,
@@ -243,8 +243,7 @@ export class DeveloperAuthService {
     }
 
     return {
-      accessToken: '', // Not returned for getMe
-      developerId: developer.id,
+      id: developer.id,
       email: developer.email,
       firstName: developer.firstName,
       lastName: developer.lastName,

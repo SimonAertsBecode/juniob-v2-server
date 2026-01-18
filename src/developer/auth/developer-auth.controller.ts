@@ -13,7 +13,6 @@ import {
   ApiTags,
   ApiOperation,
   ApiResponse,
-  ApiBearerAuth,
   ApiCookieAuth,
 } from '@nestjs/swagger';
 import { DeveloperAuthService } from './developer-auth.service';
@@ -51,10 +50,11 @@ export class DeveloperAuthController {
     @Body() dto: DeveloperSignupDto,
     @Res({ passthrough: true }) res: Response,
   ): Promise<DeveloperAuthResponseDto> {
-    const { refreshToken, ...response } = await this.authService.signup(dto);
+    const { refreshToken, accessToken, ...response } =
+      await this.authService.signup(dto);
 
-    // Set refresh token as HTTP-only cookie
-    this.setRefreshTokenCookie(res, refreshToken);
+    // Set tokens as HTTP-only cookies
+    this.setTokenCookies(res, accessToken, refreshToken);
 
     return response;
   }
@@ -73,17 +73,18 @@ export class DeveloperAuthController {
     @Body() dto: DeveloperSigninDto,
     @Res({ passthrough: true }) res: Response,
   ): Promise<DeveloperAuthResponseDto> {
-    const { refreshToken, ...response } = await this.authService.signin(dto);
+    const { refreshToken, accessToken, ...response } =
+      await this.authService.signin(dto);
 
-    // Set refresh token as HTTP-only cookie
-    this.setRefreshTokenCookie(res, refreshToken);
+    // Set tokens as HTTP-only cookies
+    this.setTokenCookies(res, accessToken, refreshToken);
 
     return response;
   }
 
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  @ApiBearerAuth('access-token')
+  @ApiCookieAuth('access_token')
   @ApiOperation({ summary: 'Log out from developer account' })
   @ApiResponse({ status: 200, description: 'Successfully logged out' })
   async logout(
@@ -92,12 +93,8 @@ export class DeveloperAuthController {
   ): Promise<{ message: string }> {
     await this.authService.logout(developerId);
 
-    // Clear the refresh token cookie
-    res.clearCookie('jwt', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-    });
+    // Clear both token cookies
+    this.clearTokenCookies(res);
 
     return { message: 'Successfully logged out' };
   }
@@ -117,20 +114,20 @@ export class DeveloperAuthController {
     @GetCurrentUserId() developerId: number,
     @GetCurrentUser('refreshToken') refreshToken: string,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<{ accessToken: string }> {
+  ): Promise<{ message: string }> {
     const tokens = await this.authService.refreshTokens(
       developerId,
       refreshToken,
     );
 
-    // Update refresh token cookie
-    this.setRefreshTokenCookie(res, tokens.refreshToken);
+    // Update both token cookies
+    this.setTokenCookies(res, tokens.accessToken, tokens.refreshToken);
 
-    return { accessToken: tokens.accessToken };
+    return { message: 'Tokens refreshed successfully' };
   }
 
   @Get('me')
-  @ApiBearerAuth('access-token')
+  @ApiCookieAuth('access_token')
   @ApiOperation({ summary: 'Get current developer profile' })
   @ApiResponse({
     status: 200,
@@ -157,7 +154,7 @@ export class DeveloperAuthController {
 
   @Post('resend-verification')
   @HttpCode(HttpStatus.OK)
-  @ApiBearerAuth('access-token')
+  @ApiCookieAuth('access_token')
   @ApiOperation({ summary: 'Resend email verification' })
   @ApiResponse({ status: 200, description: 'Verification email sent' })
   @ApiResponse({ status: 400, description: 'Email already verified' })
@@ -189,12 +186,39 @@ export class DeveloperAuthController {
     return this.authService.resetPassword(dto);
   }
 
-  private setRefreshTokenCookie(res: Response, refreshToken: string): void {
+  private setTokenCookies(
+    res: Response,
+    accessToken: string,
+    refreshToken: string,
+  ): void {
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    // Access token cookie (15 minutes)
+    res.cookie('access_token', accessToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'lax',
+      maxAge: 15 * 60 * 1000, // 15 minutes
+    });
+
+    // Refresh token cookie (7 days)
     res.cookie('jwt', refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isProduction,
       sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
+  }
+
+  private clearTokenCookies(res: Response): void {
+    const isProduction = process.env.NODE_ENV === 'production';
+    const cookieOptions = {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'lax' as const,
+    };
+
+    res.clearCookie('access_token', cookieOptions);
+    res.clearCookie('jwt', cookieOptions);
   }
 }

@@ -8,6 +8,7 @@ import { EmailModule } from './email/email.module';
 import { EncryptionModule } from './encryption/encryption.module';
 import { GithubModule } from './github/github.module';
 import { AiModule } from './ai/ai.module';
+import { NotificationModule } from './notifications/notification.module';
 import { AtGuard } from './common/guards';
 
 @Module({
@@ -21,6 +22,7 @@ import { AtGuard } from './common/guards';
     EncryptionModule,
     GithubModule,
     AiModule,
+    NotificationModule,
     CompanyModule,
     DeveloperModule,
   ],

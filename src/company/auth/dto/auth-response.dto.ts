@@ -3,18 +3,11 @@ import { IsBoolean, IsEmail, IsNumber, IsString } from 'class-validator';
 
 export class CompanyAuthResponseDto {
   @ApiProperty({
-    description: 'JWT access token',
-    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-  })
-  @IsString()
-  accessToken: string;
-
-  @ApiProperty({
     description: 'Company ID',
     example: 1,
   })
   @IsNumber()
-  companyId: number;
+  id: number;
 
   @ApiProperty({
     description: 'Company email',

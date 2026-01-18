@@ -87,7 +87,7 @@ export class CompanyAuthService {
     return {
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
-      companyId: company.id,
+      id: company.id,
       email: company.email,
       name: company.name,
       emailVerified: company.emailVerified,
@@ -128,7 +128,7 @@ export class CompanyAuthService {
     return {
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
-      companyId: company.id,
+      id: company.id,
       email: company.email,
       name: company.name,
       emailVerified: company.emailVerified,
@@ -190,8 +190,7 @@ export class CompanyAuthService {
     }
 
     return {
-      accessToken: '', // Not returned for getMe
-      companyId: company.id,
+      id: company.id,
       email: company.email,
       name: company.name,
       emailVerified: company.emailVerified,

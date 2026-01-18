@@ -4,18 +4,11 @@ import { AssessmentStatus } from '../../../../prisma/generated/prisma';
 
 export class DeveloperAuthResponseDto {
   @ApiProperty({
-    description: 'JWT access token',
-    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-  })
-  @IsString()
-  accessToken: string;
-
-  @ApiProperty({
     description: 'Developer ID',
     example: 1,
   })
   @IsNumber()
-  developerId: number;
+  id: number;
 
   @ApiProperty({
     description: 'Developer email',
