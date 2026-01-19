@@ -29,6 +29,7 @@ import {
   GetCurrentUser,
 } from '../../common/decorators';
 import { RtGuard } from '../../common/guards';
+import { setAuthCookies, clearAuthCookies } from '../../common/utils';
 
 @ApiTags('Developer Auth')
 @Controller('developer/auth')
@@ -54,7 +55,7 @@ export class DeveloperAuthController {
       await this.authService.signup(dto);
 
     // Set tokens as HTTP-only cookies
-    this.setTokenCookies(res, accessToken, refreshToken);
+    setAuthCookies(res, accessToken, refreshToken);
 
     return response;
   }
@@ -77,7 +78,7 @@ export class DeveloperAuthController {
       await this.authService.signin(dto);
 
     // Set tokens as HTTP-only cookies
-    this.setTokenCookies(res, accessToken, refreshToken);
+    setAuthCookies(res, accessToken, refreshToken);
 
     return response;
   }
@@ -94,7 +95,7 @@ export class DeveloperAuthController {
     await this.authService.logout(developerId);
 
     // Clear both token cookies
-    this.clearTokenCookies(res);
+    clearAuthCookies(res);
 
     return { message: 'Successfully logged out' };
   }
@@ -121,7 +122,7 @@ export class DeveloperAuthController {
     );
 
     // Update both token cookies
-    this.setTokenCookies(res, tokens.accessToken, tokens.refreshToken);
+    setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
 
     return { message: 'Tokens refreshed successfully' };
   }
@@ -184,41 +185,5 @@ export class DeveloperAuthController {
   @ApiResponse({ status: 400, description: 'Invalid or expired token' })
   resetPassword(@Body() dto: ResetPasswordDto): Promise<{ message: string }> {
     return this.authService.resetPassword(dto);
-  }
-
-  private setTokenCookies(
-    res: Response,
-    accessToken: string,
-    refreshToken: string,
-  ): void {
-    const isProduction = process.env.NODE_ENV === 'production';
-
-    // Access token cookie (15 minutes)
-    res.cookie('access_token', accessToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
-      maxAge: 15 * 60 * 1000, // 15 minutes
-    });
-
-    // Refresh token cookie (7 days)
-    res.cookie('jwt', refreshToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    });
-  }
-
-  private clearTokenCookies(res: Response): void {
-    const isProduction = process.env.NODE_ENV === 'production';
-    const cookieOptions = {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax' as const,
-    };
-
-    res.clearCookie('access_token', cookieOptions);
-    res.clearCookie('jwt', cookieOptions);
   }
 }
