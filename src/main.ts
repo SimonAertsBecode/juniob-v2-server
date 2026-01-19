@@ -3,13 +3,20 @@ import { NestFactory } from '@nestjs/core';
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { SwaggerModule } from '@nestjs/swagger';
 import * as cookieParser from 'cookie-parser';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { generateOpenAPIFile } from './main.openapi';
+import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     rawBody: true, // Required for Stripe webhook signature verification
   });
+
+  const configService = app.get(ConfigService);
+
+  // Security headers
+  app.use(helmet());
 
   // Cookie parser for refresh tokens
   app.use(cookieParser());
@@ -42,12 +49,9 @@ async function bootstrap() {
 
   // CORS configuration
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: configService.getOrThrow('FRONTEND_URL') || 'http://localhost:5173',
     credentials: true,
   });
-
-  // Global prefix for all routes
-  app.setGlobalPrefix('api');
 
   // Generate OpenAPI documentation in development
   if (process.env.NODE_ENV === 'development') {
@@ -55,7 +59,7 @@ async function bootstrap() {
     SwaggerModule.setup('docs', app, document);
   }
 
-  const port = process.env.PORT || 3001;
+  const port = configService.get('PORT') || 3001;
   await app.listen(port);
 
   console.log(`Server running on http://localhost:${port}`);

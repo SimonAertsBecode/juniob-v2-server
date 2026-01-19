@@ -16,7 +16,7 @@ export class EmailService {
     this.transporter = nodemailer.createTransport({
       host: this.config.get<string>('SMTP_HOST'),
       port: this.config.get<number>('SMTP_PORT'),
-      secure: false, // true for 465, false for other ports
+      secure: this.config.get<string>('NODE_ENV') !== 'development',
       auth: {
         user: this.config.get<string>('SMTP_USER'),
         pass: this.config.get<string>('SMTP_PASSWORD'),
@@ -26,7 +26,7 @@ export class EmailService {
     this.frontendUrl =
       this.config.get<string>('FRONTEND_URL') || 'http://localhost:5173';
     this.emailFrom =
-      this.config.get<string>('EMAIL_FROM') || 'Juniob <noreply@juniob.com>';
+      this.config.get<string>('EMAIL_FROM') || 'Juniob <contact@juniob.io>';
   }
 
   /**
