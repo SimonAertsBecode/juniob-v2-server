@@ -5,7 +5,6 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Octokit } from 'octokit';
 import * as jwt from 'jsonwebtoken';
 import { PrismaService } from '../prisma/prisma.service';
 import { EncryptionService } from '../encryption/encryption.service';
@@ -16,6 +15,7 @@ import {
   GithubInstallationResult,
   GithubRepositoryInfo,
 } from './types';
+import { Octokit } from '@octokit/core';
 
 @Injectable()
 export class GithubAppService {
@@ -322,15 +322,46 @@ export class GithubAppService {
    * Generate a JWT for GitHub App authentication
    */
   private generateAppJwt(): string {
-    const now = Math.floor(Date.now() / 1000);
+    if (!this.appId || !this.privateKey) {
+      throw new Error(
+        'GitHub App credentials not configured. Please set GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY.',
+      );
+    }
 
+    const now = Math.floor(Date.now() / 1000);
     const payload: GithubAppJwtPayload = {
       iat: now - 60, // Issued 60 seconds in the past to account for clock drift
-      exp: now + 10 * 60, // Expires in 10 minutes (max allowed by GitHub)
+      exp: now + 10 * 60, // Expires in 10 minutes
       iss: this.appId,
     };
 
-    return jwt.sign(payload, this.privateKey, { algorithm: 'RS256' });
+    // Handle different private key formats
+    let privateKey = this.privateKey;
+
+    // If the key is base64 encoded, decode it
+    if (!privateKey.includes('BEGIN')) {
+      try {
+        privateKey = Buffer.from(privateKey, 'base64').toString('utf-8');
+      } catch {
+        throw new Error(
+          'Invalid GITHUB_APP_PRIVATE_KEY format. Must be PEM format or base64 encoded PEM.',
+        );
+      }
+    }
+
+    // Replace escaped newlines with actual newlines
+    privateKey = privateKey.replace(/\\n/g, '\n');
+
+    // Validate the key format
+    if (!privateKey.includes('BEGIN') || !privateKey.includes('PRIVATE KEY')) {
+      throw new Error(
+        'GITHUB_APP_PRIVATE_KEY must be a valid PEM formatted RSA private key.',
+      );
+    }
+
+    return jwt.sign(payload, privateKey, {
+      algorithm: 'RS256',
+    });
   }
 
   /**
@@ -372,11 +403,11 @@ export class GithubAppService {
     token: string,
   ): Promise<GithubRepository[]> {
     const octokit = new Octokit({ auth: token });
-    const repositories: GithubRepository[] = [];
+    let repositories: GithubRepository[] = [];
 
     try {
       // Paginate through all repositories
-      const iterator = octokit.paginate.iterator(
+      const repositoriesResponse = await octokit.request(
         'GET /installation/repositories',
         {
           per_page: 100,
@@ -386,17 +417,23 @@ export class GithubAppService {
         },
       );
 
-      for await (const { data } of iterator) {
-        const repos = data as unknown as { repositories: GithubRepository[] };
-        if (repos.repositories) {
-          repositories.push(...repos.repositories);
-        }
-      }
+      repositories = repositoriesResponse.data.repositories.map(
+        (repo) =>
+          ({
+            id: repo.id,
+            name: repo.name,
+            full_name: repo.full_name,
+            description: repo.description || null,
+            private: repo.private,
+            default_branch: repo.default_branch,
+            html_url: repo.html_url,
+          }) as GithubRepository,
+      );
     } catch (error: any) {
       this.logger.error(`Failed to fetch installation repositories: ${error}`);
       // Return empty array instead of throwing - installation might have no repos yet
     }
-
+    console.log(repositories);
     return repositories;
   }
 }

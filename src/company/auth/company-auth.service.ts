@@ -230,7 +230,7 @@ export class CompanyAuthService {
     });
 
     if (!company) {
-      throw new UnauthorizedException('Company not found');
+      throw new BadRequestException('Company not found');
     }
 
     if (company.emailVerified) {

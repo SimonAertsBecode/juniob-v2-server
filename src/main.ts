@@ -25,8 +25,8 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
+      // forbidNonWhitelisted: true,
+      // transform: true,
       exceptionFactory: (errors) => {
         const result = errors.reduce(
           (acc, error) => {

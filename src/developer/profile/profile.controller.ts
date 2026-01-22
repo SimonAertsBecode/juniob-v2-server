@@ -118,6 +118,7 @@ export class ProfileController {
     @GetCurrentUserId() developerId: number,
     @Body() dto: SetExperienceDto,
   ): Promise<TechExperienceDto[]> {
+    console.log(dto, 'setExperience');
     return this.profileService.setExperience(developerId, dto);
   }
 
@@ -136,6 +137,7 @@ export class ProfileController {
     @GetCurrentUserId() developerId: number,
     @Body() dto: SetExperienceBatchDto,
   ): Promise<TechExperienceDto[]> {
+    console.log(dto, 'setExperiencesBatch');
     return this.profileService.setExperiencesBatch(
       developerId,
       dto.experiences,

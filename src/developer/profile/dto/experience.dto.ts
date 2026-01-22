@@ -1,5 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsInt, Min, Max } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsInt,
+  Min,
+  Max,
+  IsArray,
+  ValidateNested,
+  ArrayMinSize,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 
 /**
  * Add or update technology experience
@@ -21,7 +31,7 @@ export class SetExperienceDto {
   })
   @IsInt()
   @Min(1)
-  @Max(120) // Max 10 years for junior devs
+  @Max(120) // Max 10 years
   months: number;
 }
 
@@ -33,5 +43,9 @@ export class SetExperienceBatchDto {
     description: 'Array of technology experiences to set',
     type: [SetExperienceDto],
   })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @ArrayMinSize(3)
+  @Type(() => SetExperienceDto)
   experiences: SetExperienceDto[];
 }

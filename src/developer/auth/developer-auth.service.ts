@@ -154,7 +154,7 @@ export class DeveloperAuthService {
     });
 
     if (!developer) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new BadRequestException('Invalid email or password');
     }
 
     // Verify password
@@ -164,7 +164,7 @@ export class DeveloperAuthService {
     );
 
     if (!passwordValid) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new BadRequestException('Invalid email or password');
     }
 
     // Generate tokens
