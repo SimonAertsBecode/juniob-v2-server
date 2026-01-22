@@ -11,12 +11,19 @@ interface DeveloperExperience {
   months: number;
 }
 
+interface DeveloperContext {
+  developerType?: string | null; // FRONTEND, BACKEND, FULLSTACK, MOBILE
+  experiences?: DeveloperExperience[];
+}
+
 export const generateProjectAnalysisPrompt = (
   codeSnippets: string,
   fileCount: number,
   metadata?: ProjectMetadata,
-  developerExperience?: DeveloperExperience[],
+  developerContext?: DeveloperContext,
 ): string => {
+  const developerExperience = developerContext?.experiences;
+  const developerType = developerContext?.developerType;
   const metadataSection = metadata
     ? `<project_metadata>
   <name>${metadata.name}</name>
@@ -48,6 +55,21 @@ Key principle: Same code = HIGHER score with LESS experience (shows faster learn
 </experience_scoring_guidelines>`
       : '';
 
+  const developerTypeSection = developerType
+    ? `
+<developer_specialization>
+The developer identifies as: ${developerType}
+
+Use this to:
+1. Understand their focus area and career direction
+2. Evaluate if the project aligns with their stated specialization
+3. For FRONTEND devs: prioritize UI/UX quality, state management, accessibility
+4. For BACKEND devs: prioritize API design, data modeling, security, performance
+5. For FULLSTACK devs: expect competence in both areas but depth in neither
+6. For MOBILE devs: prioritize native/cross-platform patterns, offline handling, performance
+</developer_specialization>`
+    : '';
+
   return `You are an expert technical evaluator helping companies make hiring decisions for junior developers (0-3 years).
 
 <evaluation_context>
@@ -65,6 +87,8 @@ Be STRICT but FAIR and always CONSTRUCTIVE:
 </evaluation_philosophy>
 
 ${metadataSection}
+
+${developerTypeSection}
 
 ${experienceSection}
 

@@ -1,19 +1,25 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNumber, IsIn } from 'class-validator';
+import { IsInt, Min } from 'class-validator';
 
-// Credit packages available for purchase
-export const CREDIT_PACKAGES = [1, 10, 25] as const;
-export type CreditPackage = (typeof CREDIT_PACKAGES)[number];
+// Suggested credit packages (shortcuts in UI)
+export const CREDIT_PACKAGES = [
+  { credits: 1, label: '1 Credit', pricePerCredit: 27 },
+  { credits: 10, label: '10 Credits', pricePerCredit: 25, popular: true },
+  { credits: 25, label: '25 Credits', pricePerCredit: 23 },
+] as const;
+
+// Flat rate pricing (used for custom amounts)
+export const PRICE_PER_CREDIT = 27; // EUR
 
 export class PurchaseCreditsDto {
   @ApiProperty({
-    description: 'Number of credits to purchase',
-    enum: CREDIT_PACKAGES,
+    description: 'Number of credits to purchase (minimum 1)',
     example: 10,
+    minimum: 1,
   })
-  @IsNumber()
-  @IsIn(CREDIT_PACKAGES, { message: 'Credits must be one of: 1, 10, or 25' })
-  credits: CreditPackage;
+  @IsInt({ message: 'Credits must be a whole number' })
+  @Min(1, { message: 'Minimum purchase is 1 credit' })
+  credits: number;
 }
 
 export class CheckoutSessionDto {

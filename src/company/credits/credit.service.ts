@@ -11,16 +11,9 @@ import {
   CreditHistoryDto,
   CreditTransactionDto,
   CheckoutSessionDto,
-  CreditPackage,
+  PRICE_PER_CREDIT,
 } from './dto';
 import { CreditTransactionType } from '../../../prisma/generated/prisma';
-
-// Credit pricing in cents (EUR)
-const CREDIT_PRICING: Record<CreditPackage, number> = {
-  1: 2700, // 27 EUR
-  10: 25000, // 250 EUR (25 EUR/credit)
-  25: 57500, // 575 EUR (23 EUR/credit)
-};
 
 @Injectable()
 export class CreditService {
@@ -82,7 +75,7 @@ export class CreditService {
 
   async createCheckoutSession(
     companyId: number,
-    credits: CreditPackage,
+    credits: number,
   ): Promise<CheckoutSessionDto> {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
@@ -93,7 +86,8 @@ export class CreditService {
       throw new NotFoundException('Company not found');
     }
 
-    const priceInCents = CREDIT_PRICING[credits];
+    // Flat rate pricing: 27 EUR per credit (in cents)
+    const priceInCents = credits * PRICE_PER_CREDIT * 100;
     const frontendUrl =
       this.config.get<string>('FRONTEND_URL') || 'http://localhost:5173';
 

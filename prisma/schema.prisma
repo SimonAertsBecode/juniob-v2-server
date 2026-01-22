@@ -75,6 +75,13 @@ enum JuniorLevel {
   SENIOR_JUNIOR // 1-2 years experience
 }
 
+enum DeveloperType {
+  FRONTEND
+  BACKEND
+  FULLSTACK
+  MOBILE
+}
+
 // ============================================
 // COMPANY MODELS
 // ============================================
@@ -134,7 +141,7 @@ model Developer {
   hashedPassword     String
   hashedRefreshToken String?
 
-  // Profile info
+  // Basic profile info
   firstName String?
   lastName  String?
   location  String?
@@ -154,35 +161,52 @@ model Developer {
   updatedAt DateTime @updatedAt
 
   // Relations
-  invitation           Invitation? // Optional - dev may have registered without invitation
-  projects             TechnicalProject[]
-  hiringReport         HiringReport?
-  pipelineEntries      PipelineEntry[]
-  unlockedBy           UnlockedReport[]
-  collectionMembers    CollectionMember[]
-  githubInstallations  GithubAppInstallation[]
-  techExperiences      TechExperience[]
+  invitation          Invitation? // Optional - dev may have registered without invitation
+  projects            TechnicalProject[]
+  hiringReport        HiringReport?
+  pipelineEntries     PipelineEntry[]
+  unlockedBy          UnlockedReport[]
+  collectionMembers   CollectionMember[]
+  githubInstallations GithubAppInstallation[]
+  technicalProfile    TechnicalProfile? // One-to-one: technical specialization and experiences
 
   @@index([email])
   @@index([assessmentStatus])
 }
 
-// Developer's experience per technology stack
-// Used to calibrate AI analysis based on experience level
-model TechExperience {
-  id          Int    @id @default(autoincrement())
-  developerId Int
-  stackName   String // e.g., "React.js", "Node.js", "TypeScript"
-  months      Int    // Experience in months (e.g., 4 = 4 months, 24 = 2 years)
+// Technical profile: developer type and tech experiences
+// Separated from basic profile for cleaner data organization
+model TechnicalProfile {
+  id          Int           @id @default(autoincrement())
+  developerId Int           @unique
+  developerType DeveloperType // FRONTEND, BACKEND, FULLSTACK, MOBILE
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
-  developer Developer @relation(fields: [developerId], references: [id], onDelete: Cascade)
+  developer       Developer        @relation(fields: [developerId], references: [id], onDelete: Cascade)
+  techExperiences TechExperience[]
 
-  @@unique([developerId, stackName]) // One entry per stack per developer
   @@index([developerId])
+}
+
+// Developer's experience per technology stack
+// Used to calibrate AI analysis based on experience level
+model TechExperience {
+  id                 Int    @id @default(autoincrement())
+  technicalProfileId Int
+  stackName          String // e.g., "React.js", "Node.js", "TypeScript"
+  months             Int    // Experience in months (e.g., 4 = 4 months, 24 = 2 years)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  technicalProfile TechnicalProfile @relation(fields: [technicalProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([technicalProfileId, stackName]) // One entry per stack per technical profile
+  @@index([technicalProfileId])
 }
 
 // ============================================

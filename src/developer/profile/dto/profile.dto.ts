@@ -1,4 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { DeveloperTypeEnum } from './technical-profile.dto';
 
 /**
  * Technology experience entry
@@ -16,7 +17,24 @@ export class TechExperienceDto {
 }
 
 /**
- * Developer profile response
+ * Technical profile nested in response
+ */
+export class TechnicalProfileNestedDto {
+  @ApiProperty({
+    description: 'Developer type (specialization)',
+    enum: DeveloperTypeEnum,
+  })
+  developerType: DeveloperTypeEnum;
+
+  @ApiProperty({
+    description: 'Technology experiences',
+    type: [TechExperienceDto],
+  })
+  techExperiences: TechExperienceDto[];
+}
+
+/**
+ * Developer full profile response (basic info + technical profile)
  */
 export class ProfileResponseDto {
   @ApiProperty({ description: 'Developer ID' })
@@ -34,11 +52,12 @@ export class ProfileResponseDto {
   @ApiProperty({ description: 'Location', nullable: true })
   location: string | null;
 
-  @ApiProperty({
-    description: 'Technology experiences',
-    type: [TechExperienceDto],
+  @ApiPropertyOptional({
+    description: 'Technical profile (developer type and experiences)',
+    type: TechnicalProfileNestedDto,
+    nullable: true,
   })
-  techExperiences: TechExperienceDto[];
+  technicalProfile: TechnicalProfileNestedDto | null;
 
   @ApiProperty({ description: 'Profile creation date' })
   createdAt: Date;
@@ -46,3 +65,6 @@ export class ProfileResponseDto {
   @ApiProperty({ description: 'Profile last update date' })
   updatedAt: Date;
 }
+
+// Re-export for backwards compatibility
+export { DeveloperTypeEnum };

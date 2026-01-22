@@ -2,7 +2,8 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString, MaxLength } from 'class-validator';
 
 /**
- * Update developer profile (basic info)
+ * Update developer basic profile (personal info only)
+ * Technical profile (developerType, experiences) is managed separately
  */
 export class UpdateProfileDto {
   @ApiPropertyOptional({

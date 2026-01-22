@@ -28,6 +28,8 @@ import {
   StacksListResponseDto,
   SearchStacksQueryDto,
   StackSearchResponseDto,
+  TechnicalProfileResponseDto,
+  UpdateTechnicalProfileDto,
 } from './dto';
 
 @ApiTags('Developer - Profile')
@@ -50,7 +52,7 @@ export class ProfileController {
   }
 
   @Put()
-  @ApiOperation({ summary: 'Update developer profile' })
+  @ApiOperation({ summary: 'Update developer basic profile (name, location)' })
   @ApiResponse({
     status: 200,
     description: 'Updated profile',
@@ -61,6 +63,41 @@ export class ProfileController {
     @Body() dto: UpdateProfileDto,
   ): Promise<ProfileResponseDto> {
     return this.profileService.updateProfile(developerId, dto);
+  }
+
+  @Get('technical')
+  @ApiOperation({ summary: 'Get technical profile (developer type + experiences)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Technical profile',
+    type: TechnicalProfileResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Technical profile not found',
+  })
+  async getTechnicalProfile(
+    @GetCurrentUserId() developerId: number,
+  ): Promise<TechnicalProfileResponseDto | null> {
+    return this.profileService.getTechnicalProfile(developerId);
+  }
+
+  @Put('technical')
+  @ApiOperation({ summary: 'Update or create technical profile (developer type + experiences)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Updated technical profile',
+    type: TechnicalProfileResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid data (minimum 3 technologies required)',
+  })
+  async updateTechnicalProfile(
+    @GetCurrentUserId() developerId: number,
+    @Body() dto: UpdateTechnicalProfileDto,
+  ): Promise<TechnicalProfileResponseDto> {
+    return this.profileService.updateTechnicalProfile(developerId, dto);
   }
 
   @Get('stacks')

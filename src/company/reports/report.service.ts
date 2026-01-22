@@ -234,8 +234,8 @@ export class ReportService {
           },
         },
         hiringReport: true,
-        techExperiences: {
-          orderBy: { months: 'desc' },
+        technicalProfile: {
+          include: { techExperiences: { orderBy: { months: 'desc' } } },
         },
       },
     });
@@ -255,10 +255,12 @@ export class ReportService {
       firstName: developer.firstName,
       lastName: developer.lastName,
       location: developer.location,
-      techExperiences: developer.techExperiences.map((exp) => ({
-        stackName: exp.stackName,
-        months: exp.months,
-      })),
+      techExperiences: developer.technicalProfile.techExperiences.map(
+        (exp) => ({
+          stackName: exp.stackName,
+          months: exp.months,
+        }),
+      ),
     };
 
     // Map project analyses

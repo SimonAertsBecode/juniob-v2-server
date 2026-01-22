@@ -400,7 +400,15 @@ export class AssessmentService {
       },
       include: {
         project: {
-          include: { developer: true },
+          include: {
+            developer: {
+              include: {
+                technicalProfile: {
+                  include: { techExperiences: true },
+                },
+              },
+            },
+          },
         },
       },
       orderBy: { createdAt: 'asc' },
@@ -478,7 +486,11 @@ export class AssessmentService {
   private async analyzeProject(projectId: number): Promise<void> {
     const project = await this.prisma.technicalProject.findUnique({
       where: { id: projectId },
-      include: { developer: true },
+      include: {
+        developer: {
+          include: { technicalProfile: { include: { techExperiences: true } } },
+        },
+      },
     });
 
     if (!project) {
@@ -568,6 +580,17 @@ export class AssessmentService {
       const isFullstackByStructure =
         this.githubService.detectFullstackByStructure(files);
 
+      // Prepare developer context for AI analysis
+      const technicalProfile = project.developer.technicalProfile;
+      const developerContext = {
+        developerType: technicalProfile?.developerType || null,
+        experiences:
+          technicalProfile?.techExperiences.map((exp) => ({
+            tech: exp.stackName,
+            months: exp.months,
+          })) || [],
+      };
+
       // Analyze with AI
       const result: ProjectAnalysisResult = await this.aiService.analyzeProject(
         codeSnippets,
@@ -579,6 +602,7 @@ export class AssessmentService {
           languages,
           isFullstackByStructure,
         },
+        developerContext,
       );
 
       // Update project with results
@@ -658,7 +682,9 @@ export class AssessmentService {
       where: { id: developerId },
       include: {
         projects: { include: { analysis: true } },
-        techExperiences: true,
+        technicalProfile: {
+          include: { techExperiences: true },
+        },
       },
     });
 
@@ -689,14 +715,17 @@ export class AssessmentService {
       `Generating hiring report for developer ${developerId} with ${projectsData.length} projects`,
     );
 
+    const technicalProfile = developer.technicalProfile;
     const report: HiringReportResult =
       await this.aiService.generateHiringReport(projectsData, {
         firstName: developer.firstName || undefined,
         lastName: developer.lastName || undefined,
-        techExperiences: developer.techExperiences.map((exp) => ({
-          stackName: exp.stackName,
-          months: exp.months,
-        })),
+        developerType: technicalProfile?.developerType || null,
+        techExperiences:
+          technicalProfile?.techExperiences.map((exp) => ({
+            stackName: exp.stackName,
+            months: exp.months,
+          })) || [],
       });
 
     // Map recommendation to HireRecommendation enum

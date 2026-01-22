@@ -82,13 +82,16 @@ export class AiService {
       languages: string[];
       isFullstackByStructure?: boolean;
     },
-    developerExperience?: Array<{ tech: string; months: number }>,
+    developerContext?: {
+      developerType?: string | null;
+      experiences?: Array<{ tech: string; months: number }>;
+    },
   ): Promise<ProjectAnalysisResult> {
     const prompt = generateProjectAnalysisPrompt(
       codeSnippets,
       fileCount,
       metadata,
-      developerExperience,
+      developerContext,
     );
 
     const maxRetries = 3;
@@ -183,6 +186,7 @@ export class AiService {
     developerProfile: {
       firstName?: string;
       lastName?: string;
+      developerType?: string | null;
       techExperiences?: Array<{ stackName: string; months: number }>;
     },
   ): Promise<HiringReportResult> {

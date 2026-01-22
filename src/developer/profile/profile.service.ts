@@ -12,6 +12,9 @@ import {
   StackDto,
   StackSearchResponseDto,
   StacksListResponseDto,
+  DeveloperTypeEnum,
+  TechnicalProfileResponseDto,
+  UpdateTechnicalProfileDto,
 } from './dto';
 import {
   STACKS,
@@ -25,14 +28,18 @@ export class ProfileService {
   constructor(private prisma: PrismaService) {}
 
   /**
-   * Get developer profile with tech experiences
+   * Get developer profile with technical profile (developer type + experiences)
    */
   async getProfile(developerId: number): Promise<ProfileResponseDto> {
     const developer = await this.prisma.developer.findUnique({
       where: { id: developerId },
       include: {
-        techExperiences: {
-          orderBy: { months: 'desc' },
+        technicalProfile: {
+          include: {
+            techExperiences: {
+              orderBy: { months: 'desc' },
+            },
+          },
         },
       },
     });
@@ -41,12 +48,19 @@ export class ProfileService {
       throw new NotFoundException('Developer not found');
     }
 
-    const techExperiences: TechExperienceDto[] = developer.techExperiences.map(
-      (exp) => ({
-        stackName: exp.stackName,
-        months: exp.months,
-      }),
-    );
+    // Map technical profile if it exists
+    const technicalProfile = developer.technicalProfile
+      ? {
+          developerType:
+            DeveloperTypeEnum[developer.technicalProfile.developerType],
+          techExperiences: developer.technicalProfile.techExperiences.map(
+            (exp) => ({
+              stackName: exp.stackName,
+              months: exp.months,
+            }),
+          ),
+        }
+      : null;
 
     return {
       developerId: developer.id,
@@ -54,14 +68,14 @@ export class ProfileService {
       firstName: developer.firstName,
       lastName: developer.lastName,
       location: developer.location,
-      techExperiences,
+      technicalProfile,
       createdAt: developer.createdAt,
       updatedAt: developer.updatedAt,
     };
   }
 
   /**
-   * Update developer profile (basic info)
+   * Update developer basic profile (personal info only)
    */
   async updateProfile(
     developerId: number,
@@ -85,6 +99,124 @@ export class ProfileService {
     });
 
     return this.getProfile(developerId);
+  }
+
+  /**
+   * Get technical profile (developer type + experiences)
+   */
+  async getTechnicalProfile(
+    developerId: number,
+  ): Promise<TechnicalProfileResponseDto | null> {
+    const technicalProfile = await this.prisma.technicalProfile.findUnique({
+      where: { developerId },
+      include: {
+        techExperiences: {
+          orderBy: { months: 'desc' },
+        },
+      },
+    });
+
+    if (!technicalProfile) {
+      return null;
+    }
+
+    return {
+      id: technicalProfile.id,
+      developerId: technicalProfile.developerId,
+      developerType: DeveloperTypeEnum[technicalProfile.developerType],
+      techExperiences: technicalProfile.techExperiences.map((exp) => ({
+        stackName: exp.stackName,
+        months: exp.months,
+      })),
+      createdAt: technicalProfile.createdAt,
+      updatedAt: technicalProfile.updatedAt,
+    };
+  }
+
+  /**
+   * Update or create technical profile (developer type + experiences)
+   */
+  async updateTechnicalProfile(
+    developerId: number,
+    dto: UpdateTechnicalProfileDto,
+  ): Promise<TechnicalProfileResponseDto> {
+    // Validate developer exists
+    const developer = await this.prisma.developer.findUnique({
+      where: { id: developerId },
+    });
+
+    if (!developer) {
+      throw new NotFoundException('Developer not found');
+    }
+
+    // Validate all stack names
+    const invalidStacks = dto.experiences.filter(
+      (e) => !isValidStack(e.stackName),
+    );
+    if (invalidStacks.length > 0) {
+      throw new BadRequestException(
+        `Invalid stack names: ${invalidStacks.map((s) => `"${s.stackName}"`).join(', ')}. Please use stacks from the available stacks list.`,
+      );
+    }
+
+    // Normalize stack names
+    const normalizedExperiences = dto.experiences.map((e) => ({
+      stackName: getStackName(e.stackName)!,
+      months: e.months,
+    }));
+
+    // Use transaction to upsert technical profile and replace experiences
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Upsert technical profile
+      const technicalProfile = await tx.technicalProfile.upsert({
+        where: { developerId },
+        create: {
+          developerId,
+          developerType: dto.developerType,
+        },
+        update: {
+          developerType: dto.developerType,
+        },
+      });
+
+      // Delete all existing experiences
+      await tx.techExperience.deleteMany({
+        where: { technicalProfileId: technicalProfile.id },
+      });
+
+      // Create new experiences
+      if (normalizedExperiences.length > 0) {
+        await tx.techExperience.createMany({
+          data: normalizedExperiences.map((e) => ({
+            technicalProfileId: technicalProfile.id,
+            stackName: e.stackName,
+            months: e.months,
+          })),
+        });
+      }
+
+      // Return the updated profile with experiences
+      return tx.technicalProfile.findUnique({
+        where: { id: technicalProfile.id },
+        include: {
+          techExperiences: {
+            orderBy: { months: 'desc' },
+          },
+        },
+      });
+    });
+
+    return {
+      id: result!.id,
+      developerId: result!.developerId,
+      developerType: DeveloperTypeEnum[result!.developerType],
+      techExperiences: result!.techExperiences.map((exp) => ({
+        stackName: exp.stackName,
+        months: exp.months,
+      })),
+      createdAt: result!.createdAt,
+      updatedAt: result!.updatedAt,
+    };
   }
 
   /**
@@ -133,12 +265,20 @@ export class ProfileService {
    * Get developer's tech experiences
    */
   async getExperiences(developerId: number): Promise<TechExperienceDto[]> {
-    const experiences = await this.prisma.techExperience.findMany({
+    const technicalProfile = await this.prisma.technicalProfile.findUnique({
       where: { developerId },
-      orderBy: { months: 'desc' },
+      include: {
+        techExperiences: {
+          orderBy: { months: 'desc' },
+        },
+      },
     });
 
-    return experiences.map((exp) => ({
+    if (!technicalProfile) {
+      return [];
+    }
+
+    return technicalProfile.techExperiences.map((exp) => ({
       stackName: exp.stackName,
       months: exp.months,
     }));
@@ -146,6 +286,7 @@ export class ProfileService {
 
   /**
    * Set (add or update) a single tech experience
+   * Note: Requires technical profile to exist first
    */
   async setExperience(
     developerId: number,
@@ -161,16 +302,27 @@ export class ProfileService {
     // Get the correct casing for the stack name
     const normalizedStackName = getStackName(dto.stackName)!;
 
+    // Get or throw if technical profile doesn't exist
+    const technicalProfile = await this.prisma.technicalProfile.findUnique({
+      where: { developerId },
+    });
+
+    if (!technicalProfile) {
+      throw new BadRequestException(
+        'Technical profile not found. Please set your developer type first.',
+      );
+    }
+
     // Upsert the experience
     await this.prisma.techExperience.upsert({
       where: {
-        developerId_stackName: {
-          developerId,
+        technicalProfileId_stackName: {
+          technicalProfileId: technicalProfile.id,
           stackName: normalizedStackName,
         },
       },
       create: {
-        developerId,
+        technicalProfileId: technicalProfile.id,
         stackName: normalizedStackName,
         months: dto.months,
       },
@@ -184,6 +336,7 @@ export class ProfileService {
 
   /**
    * Set multiple tech experiences at once (replaces all existing)
+   * Note: Requires technical profile to exist first
    */
   async setExperiencesBatch(
     developerId: number,
@@ -197,6 +350,17 @@ export class ProfileService {
       );
     }
 
+    // Get or throw if technical profile doesn't exist
+    const technicalProfile = await this.prisma.technicalProfile.findUnique({
+      where: { developerId },
+    });
+
+    if (!technicalProfile) {
+      throw new BadRequestException(
+        'Technical profile not found. Please set your developer type first.',
+      );
+    }
+
     // Normalize stack names
     const normalizedExperiences = experiences.map((e) => ({
       stackName: getStackName(e.stackName)!,
@@ -207,14 +371,14 @@ export class ProfileService {
     await this.prisma.$transaction(async (tx) => {
       // Delete all existing experiences
       await tx.techExperience.deleteMany({
-        where: { developerId },
+        where: { technicalProfileId: technicalProfile.id },
       });
 
       // Create new experiences
       if (normalizedExperiences.length > 0) {
         await tx.techExperience.createMany({
           data: normalizedExperiences.map((e) => ({
-            developerId,
+            technicalProfileId: technicalProfile.id,
             stackName: e.stackName,
             months: e.months,
           })),
@@ -239,11 +403,20 @@ export class ProfileService {
       throw new BadRequestException(`Invalid stack name: "${stackName}"`);
     }
 
+    // Get technical profile
+    const technicalProfile = await this.prisma.technicalProfile.findUnique({
+      where: { developerId },
+    });
+
+    if (!technicalProfile) {
+      throw new NotFoundException('Technical profile not found');
+    }
+
     // Check if experience exists
     const existing = await this.prisma.techExperience.findUnique({
       where: {
-        developerId_stackName: {
-          developerId,
+        technicalProfileId_stackName: {
+          technicalProfileId: technicalProfile.id,
           stackName: normalizedStackName,
         },
       },
@@ -257,8 +430,8 @@ export class ProfileService {
 
     await this.prisma.techExperience.delete({
       where: {
-        developerId_stackName: {
-          developerId,
+        technicalProfileId_stackName: {
+          technicalProfileId: technicalProfile.id,
           stackName: normalizedStackName,
         },
       },
@@ -280,10 +453,18 @@ export class ProfileService {
       return null;
     }
 
+    const technicalProfile = await this.prisma.technicalProfile.findUnique({
+      where: { developerId },
+    });
+
+    if (!technicalProfile) {
+      return null;
+    }
+
     const experience = await this.prisma.techExperience.findUnique({
       where: {
-        developerId_stackName: {
-          developerId,
+        technicalProfileId_stackName: {
+          technicalProfileId: technicalProfile.id,
           stackName: normalizedStackName,
         },
       },
@@ -296,16 +477,40 @@ export class ProfileService {
    * Get all experiences as a map (used by AI analysis)
    */
   async getExperienceMap(developerId: number): Promise<Record<string, number>> {
-    const experiences = await this.prisma.techExperience.findMany({
+    const technicalProfile = await this.prisma.technicalProfile.findUnique({
       where: { developerId },
+      include: {
+        techExperiences: true,
+      },
     });
 
-    return experiences.reduce(
+    if (!technicalProfile) {
+      return {};
+    }
+
+    return technicalProfile.techExperiences.reduce(
       (map, exp) => {
         map[exp.stackName] = exp.months;
         return map;
       },
       {} as Record<string, number>,
     );
+  }
+
+  /**
+   * Get developer type (used by AI analysis)
+   */
+  async getDeveloperType(
+    developerId: number,
+  ): Promise<DeveloperTypeEnum | null> {
+    const technicalProfile = await this.prisma.technicalProfile.findUnique({
+      where: { developerId },
+    });
+
+    if (!technicalProfile) {
+      return null;
+    }
+
+    return DeveloperTypeEnum[technicalProfile.developerType];
   }
 }

@@ -26,6 +26,7 @@ interface TechExperience {
 interface DeveloperProfile {
   firstName?: string;
   lastName?: string;
+  developerType?: string | null; // FRONTEND, BACKEND, FULLSTACK, MOBILE
   techExperiences?: TechExperience[];
 }
 
@@ -80,12 +81,26 @@ If a section does not reduce risk, uncertainty, or explanation effort, it should
 
 <developer_profile>
   <name>${developerProfile.firstName || 'Unknown'} ${developerProfile.lastName || ''}</name>
+  <specialization>${developerProfile.developerType || 'Not specified'}</specialization>
   <projects_analyzed>${projects.length}</projects_analyzed>
   <average_project_score>${avgScore}</average_project_score>
   <self_reported_tech_experience>
 ${techExperiencesSection}
   </self_reported_tech_experience>
 </developer_profile>
+
+<specialization_context>
+${
+  developerProfile.developerType
+    ? `The developer identifies as: ${developerProfile.developerType}.
+Evaluate their projects and skills with this career direction in mind:
+- FRONTEND: Focus on UI/UX quality, component architecture, state management, accessibility
+- BACKEND: Focus on API design, data modeling, security, performance, scalability patterns
+- FULLSTACK: Expect breadth across both areas, assess balance between frontend and backend skills
+- MOBILE: Focus on native/cross-platform patterns, offline handling, responsive design, performance`
+    : 'No specialization specified - provide general full-stack assessment.'
+}
+</specialization_context>
 
 <important_context>
 The tech experience above is SELF-REPORTED by the developer (in months). Use this to:
