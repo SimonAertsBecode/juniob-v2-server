@@ -240,9 +240,46 @@ export class GithubAppService {
   }
 
   /**
+   * Get the installation ID for a developer
+   */
+  async getInstallationId(developerId: number): Promise<string | null> {
+    const installation = await this.prisma.githubAppInstallation.findFirst({
+      where: { developerId },
+      orderBy: { createdAt: 'desc' },
+      select: { installationId: true },
+    });
+
+    return installation?.installationId || null;
+  }
+
+  /**
    * Remove GitHub App installation for a developer
+   * Also removes projects with PENDING or FAILED status
    */
   async removeInstallation(developerId: number): Promise<void> {
+    // Find and delete projects with PENDING or FAILED status
+    const projectsToDelete = await this.prisma.technicalProject.findMany({
+      where: {
+        developerId,
+        OR: [
+          { analysis: null },
+          { analysis: { status: { in: ['PENDING', 'FAILED'] } } },
+        ],
+      },
+      select: { id: true, name: true },
+    });
+
+    if (projectsToDelete.length > 0) {
+      await this.prisma.technicalProject.deleteMany({
+        where: { id: { in: projectsToDelete.map((p) => p.id) } },
+      });
+
+      this.logger.log(
+        `Deleted ${projectsToDelete.length} pending/failed projects for developer ${developerId}: ${projectsToDelete.map((p) => p.name).join(', ')}`,
+      );
+    }
+
+    // Remove the GitHub installation
     await this.prisma.githubAppInstallation.deleteMany({
       where: { developerId },
     });
@@ -254,6 +291,7 @@ export class GithubAppService {
 
   /**
    * Sync repositories - refresh the list from GitHub
+   * Also cleans up projects that no longer have access to their repos
    */
   async syncRepositories(developerId: number): Promise<GithubRepositoryInfo[]> {
     const octokit = await this.getAuthenticatedOctokit(developerId);
@@ -300,6 +338,9 @@ export class GithubAppService {
       });
     }
 
+    // Clean up projects that no longer have repo access (only PENDING or FAILED)
+    await this.cleanupOrphanedProjects(developerId, repositories);
+
     this.logger.log(
       `Synced ${repositories.length} repositories for developer ${developerId}`,
     );
@@ -312,6 +353,64 @@ export class GithubAppService {
       isPrivate: repo.private,
       description: repo.description,
     }));
+  }
+
+  /**
+   * Clean up projects whose repos are no longer authorized
+   * Only removes projects with PENDING or FAILED status
+   * Projects with ANALYZING or COMPLETE status are preserved
+   */
+  private async cleanupOrphanedProjects(
+    developerId: number,
+    authorizedRepos: GithubRepository[],
+  ): Promise<void> {
+    // Get all repo full names that are now authorized
+    const authorizedRepoNames = new Set(
+      authorizedRepos.map((repo) => repo.full_name.toLowerCase()),
+    );
+
+    // Find all developer's projects
+    const projects = await this.prisma.technicalProject.findMany({
+      where: { developerId },
+      include: { analysis: true },
+    });
+
+    // Find projects that need to be removed
+    const projectsToDelete: number[] = [];
+
+    for (const project of projects) {
+      // Extract repo full name from GitHub URL
+      const match = project.githubUrl.match(/github\.com\/(.+)$/);
+      const repoFullName = match ? match[1].toLowerCase() : null;
+
+      // If repo is no longer authorized
+      if (repoFullName && !authorizedRepoNames.has(repoFullName)) {
+        const analysisStatus = project.analysis?.status;
+
+        // Only delete if status is PENDING or FAILED
+        if (!analysisStatus || analysisStatus === 'PENDING' || analysisStatus === 'FAILED') {
+          projectsToDelete.push(project.id);
+          this.logger.log(
+            `Removing project ${project.id} (${project.name}) - repo access revoked and status is ${analysisStatus || 'no analysis'}`,
+          );
+        } else {
+          this.logger.log(
+            `Keeping project ${project.id} (${project.name}) - repo access revoked but status is ${analysisStatus}`,
+          );
+        }
+      }
+    }
+
+    // Delete the identified projects (cascade will delete analyses too)
+    if (projectsToDelete.length > 0) {
+      await this.prisma.technicalProject.deleteMany({
+        where: { id: { in: projectsToDelete } },
+      });
+
+      this.logger.log(
+        `Cleaned up ${projectsToDelete.length} projects for developer ${developerId}`,
+      );
+    }
   }
 
   // ========================================

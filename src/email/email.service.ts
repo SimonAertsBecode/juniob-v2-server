@@ -148,7 +148,7 @@ export class EmailService {
       <h1 style="color: ${ACCENT_COLOR}; margin-top: 0;">You've been invited!</h1>
       <p><strong>${companyName}</strong> has invited you to join Juniob, a platform where you can showcase your technical skills to potential employers.</p>
       ${messageSection}
-      <p>Create your profile, submit your GitHub projects, and get AI-powered feedback on your code:</p>
+      <p>Create your profile, submit your GitHub projects, and get professional feedback on your code:</p>
       ${this.getButton('Accept Invitation', signupUrl)}
       <p style="color: #666; font-size: 14px;">Or copy and paste this link into your browser:</p>
       <p style="word-break: break-all; color: #666; font-size: 13px;">${signupUrl}</p>
@@ -184,7 +184,7 @@ export class EmailService {
       <ul style="color: #555; padding-left: 20px;">
         <li>Invite candidates to create their technical profile</li>
         <li>Track candidates through your hiring pipeline</li>
-        <li>Access AI-powered technical assessments</li>
+        <li>Access automated technical assessments</li>
         <li>Organize candidates into collections</li>
       </ul>
       <p>You've received <strong>3 free credits</strong> to unlock developer reports!</p>
@@ -198,7 +198,7 @@ export class EmailService {
       <ul style="color: #555; padding-left: 20px;">
         <li>Connect your GitHub account</li>
         <li>Submit 1-3 of your best projects</li>
-        <li>Get AI-powered feedback on your code</li>
+        <li>Get professional feedback on your code</li>
         <li>Make your profile visible to companies</li>
       </ul>
       ${this.getButton('Complete Your Profile', dashboardUrl)}

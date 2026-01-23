@@ -370,7 +370,7 @@ export class InvitationService {
       case DeveloperStatusType.PROJECTS_SUBMITTED:
         return 'Projects submitted, waiting for analysis';
       case DeveloperStatusType.ANALYZING:
-        return 'AI analysis in progress (typically 5-10 minutes)';
+        return 'Analysis in progress (typically 5-10 minutes)';
       case DeveloperStatusType.PENDING_ANALYSIS:
         return 'Waiting for developer to regenerate report';
       case DeveloperStatusType.ASSESSED:

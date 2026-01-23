@@ -313,7 +313,7 @@ export class AssessmentService {
     const statusDescriptions: Record<AssessmentStatus, string> = {
       REGISTERING: 'Complete your profile and submit projects',
       PROJECTS_SUBMITTED: 'Projects submitted, waiting for analysis',
-      ANALYZING: 'AI analysis in progress',
+      ANALYZING: 'Analysis in progress',
       PENDING_ANALYSIS: 'Project changes detected, please regenerate report',
       ASSESSED: 'Assessment complete! Your profile is visible to companies',
     };

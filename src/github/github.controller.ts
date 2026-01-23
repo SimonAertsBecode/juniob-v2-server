@@ -47,12 +47,15 @@ export class GithubController {
       return { isConnected: false };
     }
 
-    const repositories =
-      await this.githubAppService.getAuthorizedRepositories(developerId);
+    const [repositories, installationId] = await Promise.all([
+      this.githubAppService.getAuthorizedRepositories(developerId),
+      this.githubAppService.getInstallationId(developerId),
+    ]);
 
     return {
       isConnected: true,
       repositoryCount: repositories.length,
+      installationId: installationId || undefined,
     };
   }
 
