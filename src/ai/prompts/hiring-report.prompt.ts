@@ -195,7 +195,9 @@ This score supports the qualitative evaluation - it is NOT the primary decision 
 </language_guidelines>
 
 <output_format>
-Provide your response as JSON:
+IMPORTANT: You MUST output ONLY valid JSON. No explanations, no markdown code blocks, no text before or after the JSON. Just the raw JSON object.
+
+Your response must be exactly this JSON structure (nothing else):
 
 {
   "recommendation": "SAFE_TO_INTERVIEW | INTERVIEW_WITH_CAUTION | NOT_READY",
@@ -247,5 +249,7 @@ Provide your response as JSON:
   "mentoringNeeds": ["<need 1>", "<need 2>", ...],
   "growthPotential": "<1-2 sentences on learning trajectory>"
 }
+
+Output ONLY the JSON object. No other text.
 </output_format>`.trim();
 };

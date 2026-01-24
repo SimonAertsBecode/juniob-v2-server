@@ -14,7 +14,8 @@ export class GithubStatusResponseDto {
   repositoryCount?: number;
 
   @ApiPropertyOptional({
-    description: 'GitHub App installation ID (for configuring repository access)',
+    description:
+      'GitHub App installation ID (for configuring repository access)',
     example: '12345678',
   })
   installationId?: string;

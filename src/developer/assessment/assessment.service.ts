@@ -554,10 +554,10 @@ export class AssessmentService {
         totalSize += file.content.length;
       }
 
-      // Create code snippets
+      // Create code snippets - use larger file size limit for better context
       const codeSnippets = filesToAnalyze
         .map((file) => {
-          const maxFileSize = 5000;
+          const maxFileSize = 8000; // Increased from 5000 for better context
           const content =
             file.content.length > maxFileSize
               ? file.content.slice(0, maxFileSize) + '\n// ... (truncated)'

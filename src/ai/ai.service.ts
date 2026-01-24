@@ -69,6 +69,37 @@ export class AiService {
   }
 
   /**
+   * Extract JSON from AI response - handles various formats
+   */
+  private extractJson(content: string): string {
+    // Try to find JSON object in the response
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return jsonMatch[0];
+    }
+
+    // Clean response - remove analysis tags and markdown blocks
+    let cleaned = content
+      .trim()
+      .replace(/<analysis>[\s\S]*?<\/analysis>/gi, '')
+      .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/```\s*$/i, '')
+      .trim();
+
+    // If still not starting with {, try to find the JSON object
+    if (!cleaned.startsWith('{')) {
+      const jsonStart = cleaned.indexOf('{');
+      if (jsonStart !== -1) {
+        cleaned = cleaned.substring(jsonStart);
+      }
+    }
+
+    return cleaned;
+  }
+
+  /**
    * Tier 1: Analyze a single technical project
    * Developer can see this analysis
    */
@@ -98,27 +129,31 @@ export class AiService {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
+        this.logger.log(
+          `Analyzing project (attempt ${attempt}/${maxRetries}): ${metadata?.name || 'Unknown'}`,
+        );
+
         const response = await this.anthropic.messages.create({
           model: 'claude-sonnet-4-20250514',
-          max_tokens: 4096,
-          temperature: 0.4,
+          max_tokens: 6000,
+          temperature: 0.2,
           system:
-            'You are an honest, experienced code reviewer evaluating junior developers (0-3 years) for recruiters. Provide accurate assessments based on actual code quality. Use the full scoring range (0-100) appropriately. Be specific, honest, and differentiate between beginner and advanced work.',
+            'You are an expert code reviewer. First provide your analysis in <analysis> tags, then output ONLY valid JSON. The analysis should show your scoring calculation step by step.',
           messages: [{ role: 'user', content: prompt }],
         });
 
         const content =
           response.content[0].type === 'text' ? response.content[0].text : '{}';
 
-        // Clean response - remove analysis tags and markdown blocks
-        const cleaned = content
-          .trim()
-          .replace(/<analysis>[\s\S]*?<\/analysis>/gi, '')
-          .replace(/^```json\s*/i, '')
-          .replace(/```\s*$/i, '')
-          .trim();
+        // Extract JSON from response
+        const jsonString = this.extractJson(content);
 
-        const parsed = JSON.parse(cleaned);
+        // Log first 200 chars for debugging
+        this.logger.debug(
+          `AI response preview: ${jsonString.substring(0, 200)}...`,
+        );
+
+        const parsed = JSON.parse(jsonString);
 
         // Validate required fields
         if (
@@ -128,6 +163,10 @@ export class AiService {
         ) {
           throw new Error('Invalid AI response structure');
         }
+
+        this.logger.log(
+          `Successfully analyzed project: ${metadata?.name}, score: ${parsed.score}`,
+        );
 
         return {
           score: Math.min(100, Math.max(0, parsed.score)),
@@ -146,12 +185,23 @@ export class AiService {
           error?.message?.includes('Rate limit') ||
           error?.message?.includes('overloaded');
 
+        const isJsonError = error?.message?.includes('JSON');
+
         if (isRateLimit && attempt < maxRetries) {
           const waitTime = Math.pow(2, attempt) * 5000;
           this.logger.warn(
             `Rate limit hit (attempt ${attempt}/${maxRetries}). Waiting ${waitTime / 1000}s...`,
           );
           await new Promise((resolve) => setTimeout(resolve, waitTime));
+          continue;
+        }
+
+        // Retry on JSON parsing errors too
+        if (isJsonError && attempt < maxRetries) {
+          this.logger.warn(
+            `JSON parsing failed (attempt ${attempt}/${maxRetries}): ${error?.message}. Retrying...`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, 2000));
           continue;
         }
 
@@ -201,21 +251,22 @@ export class AiService {
           max_tokens: 8192,
           temperature: 0.5,
           system:
-            'You are a senior technical advisor providing hiring recommendations for junior developers (0-3 years). Your report must help recruiters answer: "Can I safely move this junior forward?" Be objective, specific, and actionable.',
+            'You are a senior technical advisor providing hiring recommendations for junior developers (0-3 years). Your report must help recruiters answer: "Can I safely move this junior forward?" Be objective, specific, and actionable. You MUST respond with ONLY valid JSON. No explanations, no markdown code blocks, no text before or after the JSON. Just the raw JSON object.',
           messages: [{ role: 'user', content: prompt }],
         });
 
         const content =
           response.content[0].type === 'text' ? response.content[0].text : '{}';
 
-        const cleaned = content
-          .trim()
-          .replace(/<analysis>[\s\S]*?<\/analysis>/gi, '')
-          .replace(/^```json\s*/i, '')
-          .replace(/```\s*$/i, '')
-          .trim();
+        // Extract JSON from response using helper
+        const jsonString = this.extractJson(content);
 
-        const parsed = JSON.parse(cleaned);
+        // Log first 200 chars for debugging
+        this.logger.debug(
+          `Hiring report response preview: ${jsonString.substring(0, 200)}...`,
+        );
+
+        const parsed = JSON.parse(jsonString);
 
         // Validate recommendation enum
         const validRecommendations = [
@@ -280,12 +331,23 @@ export class AiService {
           error?.message?.includes('Rate limit') ||
           error?.message?.includes('overloaded');
 
+        const isJsonError = error?.message?.includes('JSON');
+
         if (isRateLimit && attempt < maxRetries) {
           const waitTime = Math.pow(2, attempt) * 5000;
           this.logger.warn(
             `Rate limit hit (attempt ${attempt}/${maxRetries}). Waiting ${waitTime / 1000}s...`,
           );
           await new Promise((resolve) => setTimeout(resolve, waitTime));
+          continue;
+        }
+
+        // Retry on JSON parsing errors too
+        if (isJsonError && attempt < maxRetries) {
+          this.logger.warn(
+            `JSON parsing failed (attempt ${attempt}/${maxRetries}): ${error?.message}. Retrying...`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, 2000));
           continue;
         }
 
