@@ -5,25 +5,46 @@ import { PipelineEntryDto } from './pipeline-entry.dto';
  * Pipeline entries grouped by stage
  */
 export class PipelineGroupedDto {
-  @ApiProperty({ description: 'Candidates invited but not yet registered', type: [PipelineEntryDto] })
+  @ApiProperty({
+    description: 'Candidates invited but not yet registered',
+    type: [PipelineEntryDto],
+  })
   invited: PipelineEntryDto[];
 
-  @ApiProperty({ description: 'Candidates currently registering', type: [PipelineEntryDto] })
+  @ApiProperty({
+    description: 'Candidates currently registering',
+    type: [PipelineEntryDto],
+  })
   registering: PipelineEntryDto[];
 
-  @ApiProperty({ description: 'Candidates who submitted projects', type: [PipelineEntryDto] })
+  @ApiProperty({
+    description: 'Candidates who submitted projects',
+    type: [PipelineEntryDto],
+  })
   projectsSubmitted: PipelineEntryDto[];
 
-  @ApiProperty({ description: 'Candidates with analysis in progress', type: [PipelineEntryDto] })
+  @ApiProperty({
+    description: 'Candidates with analysis in progress',
+    type: [PipelineEntryDto],
+  })
   analyzing: PipelineEntryDto[];
 
-  @ApiProperty({ description: 'Candidates pending analysis regeneration', type: [PipelineEntryDto] })
+  @ApiProperty({
+    description: 'Candidates pending analysis regeneration',
+    type: [PipelineEntryDto],
+  })
   pendingAnalysis: PipelineEntryDto[];
 
-  @ApiProperty({ description: 'Candidates with completed assessment', type: [PipelineEntryDto] })
+  @ApiProperty({
+    description: 'Candidates with completed assessment',
+    type: [PipelineEntryDto],
+  })
   assessed: PipelineEntryDto[];
 
-  @ApiProperty({ description: 'Candidates with unlocked reports', type: [PipelineEntryDto] })
+  @ApiProperty({
+    description: 'Candidates with unlocked reports',
+    type: [PipelineEntryDto],
+  })
   unlocked: PipelineEntryDto[];
 
   @ApiProperty({ description: 'Hired candidates', type: [PipelineEntryDto] })
@@ -69,6 +90,18 @@ export class PipelineQueryDto {
     ],
   })
   stage?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter by tag IDs (comma-separated)',
+    example: '1,2,3',
+  })
+  tagIds?: string;
+
+  @ApiPropertyOptional({
+    description: 'Search by developer email',
+    example: 'john@example.com',
+  })
+  search?: string;
 
   @ApiPropertyOptional({ description: 'Limit', default: 50 })
   limit?: number;

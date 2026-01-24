@@ -125,8 +125,8 @@ model Company {
   invitations        Invitation[]
   creditTransactions CreditTransaction[]
   pipelineEntries    PipelineEntry[]
-  collections        Collection[]
   unlockedReports    UnlockedReport[]
+  tags               Tag[]
 
   @@index([email])
 }
@@ -169,7 +169,6 @@ model Developer {
   hiringReport        HiringReport?
   pipelineEntries     PipelineEntry[]
   unlockedBy          UnlockedReport[]
-  collectionMembers   CollectionMember[]
   githubInstallations GithubAppInstallation[]
   technicalProfile    TechnicalProfile? // One-to-one: technical specialization and experiences
 
@@ -468,8 +467,9 @@ model PipelineEntry {
   updatedAt DateTime @updatedAt
 
   // Relations
-  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  developer Developer @relation(fields: [developerId], references: [id], onDelete: Cascade)
+  company   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  developer Developer          @relation(fields: [developerId], references: [id], onDelete: Cascade)
+  tags      PipelineEntryTag[]
 
   @@unique([companyId, developerId]) // One entry per company-developer pair
   @@index([companyId])
@@ -478,36 +478,38 @@ model PipelineEntry {
 }
 
 // ============================================
-// COLLECTIONS (Folders for organizing candidates)
+// TAGS (Labels for organizing pipeline entries)
 // ============================================
 
-model Collection {
+model Tag {
   id        Int    @id @default(autoincrement())
   companyId Int
-  name      String // e.g., "Frontend for GetYourWay", "Backend interns"
+  name      String // e.g., "Frontend", "Senior", "Project-X"
+  color     String // Hex color for UI, e.g., "#3B82F6"
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
-  company Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  members CollectionMember[]
+  company         Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  pipelineEntries PipelineEntryTag[]
 
+  @@unique([companyId, name]) // Each company can only have one tag with a given name
   @@index([companyId])
 }
 
-model CollectionMember {
-  id           Int @id @default(autoincrement())
-  collectionId Int
-  developerId  Int
+model PipelineEntryTag {
+  id              Int @id @default(autoincrement())
+  pipelineEntryId Int
+  tagId           Int
 
-  addedAt DateTime @default(now())
+  createdAt DateTime @default(now())
 
   // Relations
-  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
-  developer  Developer  @relation(fields: [developerId], references: [id], onDelete: Cascade)
+  pipelineEntry PipelineEntry @relation(fields: [pipelineEntryId], references: [id], onDelete: Cascade)
+  tag           Tag           @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
-  @@unique([collectionId, developerId]) // Developer can only be in a collection once
-  @@index([collectionId])
-  @@index([developerId])
+  @@unique([pipelineEntryId, tagId]) // A tag can only be assigned once per pipeline entry
+  @@index([pipelineEntryId])
+  @@index([tagId])
 }

@@ -4,7 +4,8 @@ import { CreditModule } from './credits/credit.module';
 import { InvitationModule } from './invitations/invitation.module';
 import { ReportModule } from './reports/report.module';
 import { PipelineModule } from './pipeline/pipeline.module';
-import { CollectionModule } from './collections/collection.module';
+import { ProfileModule } from './profile/profile.module';
+import { TagModule } from './tags/tag.module';
 
 @Module({
   imports: [
@@ -13,7 +14,8 @@ import { CollectionModule } from './collections/collection.module';
     InvitationModule,
     ReportModule,
     PipelineModule,
-    CollectionModule,
+    ProfileModule,
+    TagModule,
   ],
   exports: [
     CompanyAuthModule,
@@ -21,7 +23,8 @@ import { CollectionModule } from './collections/collection.module';
     InvitationModule,
     ReportModule,
     PipelineModule,
-    CollectionModule,
+    ProfileModule,
+    TagModule,
   ],
 })
 export class CompanyModule {}

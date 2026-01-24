@@ -30,6 +30,7 @@ import {
   UpdatePipelineStageDto,
   UpdatePipelineNotesDto,
   AddToPipelineDto,
+  SetPipelineTagsDto,
 } from './dto';
 
 @ApiTags('Company - Pipeline')
@@ -216,6 +217,29 @@ export class PipelineController {
       developerId,
       dto.notes || null,
     );
+  }
+
+  @Patch(':developerId/tags')
+  @ApiOperation({
+    summary: 'Set pipeline entry tags',
+    description: 'Set tags for a pipeline entry (replaces all existing tags)',
+  })
+  @ApiParam({ name: 'developerId', description: 'Developer ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Tags updated',
+    type: PipelineEntryDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Developer not found in pipeline or tag not found',
+  })
+  async setTags(
+    @GetCurrentUserId() companyId: number,
+    @Param('developerId', ParseIntPipe) developerId: number,
+    @Body() dto: SetPipelineTagsDto,
+  ): Promise<PipelineEntryDto> {
+    return this.pipelineService.setTags(companyId, developerId, dto.tagIds);
   }
 
   @Delete(':developerId')

@@ -2,12 +2,14 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PipelineStage } from '../../../prisma/generated/prisma';
 import {
   PipelineEntryDto,
   PipelineDeveloperDto,
+  PipelineTagDto,
   PipelineListDto,
   PipelineGroupedDto,
   PipelineStatsDto,
@@ -35,6 +37,31 @@ export class PipelineService {
       where.stage = query.stage as PipelineStage;
     }
 
+    // Filter by tags if provided
+    if (query.tagIds) {
+      const tagIdArray = query.tagIds
+        .split(',')
+        .map((id) => parseInt(id.trim(), 10))
+        .filter((id) => !isNaN(id));
+      if (tagIdArray.length > 0) {
+        where.tags = {
+          some: {
+            tagId: { in: tagIdArray },
+          },
+        };
+      }
+    }
+
+    // Search by developer email if provided
+    if (query.search) {
+      where.developer = {
+        email: {
+          contains: query.search,
+          mode: 'insensitive',
+        },
+      };
+    }
+
     const [entries, total] = await Promise.all([
       this.prisma.pipelineEntry.findMany({
         where,
@@ -47,6 +74,11 @@ export class PipelineService {
               hiringReport: {
                 select: { overallScore: true },
               },
+            },
+          },
+          tags: {
+            include: {
+              tag: true,
             },
           },
         },
@@ -85,6 +117,13 @@ export class PipelineService {
         projectCount: entry.developer.projects.length,
       };
 
+      // Map tags
+      const tags: PipelineTagDto[] = entry.tags.map((pt) => ({
+        id: pt.tag.id,
+        name: pt.tag.name,
+        color: pt.tag.color,
+      }));
+
       return {
         id: entry.id,
         companyId: entry.companyId,
@@ -93,6 +132,7 @@ export class PipelineService {
         notes: entry.notes || undefined,
         isUnlocked: unlockedSet.has(entry.developerId),
         developer,
+        tags,
         createdAt: entry.createdAt,
         updatedAt: entry.updatedAt,
       };
@@ -121,6 +161,11 @@ export class PipelineService {
             hiringReport: {
               select: { overallScore: true },
             },
+          },
+        },
+        tags: {
+          include: {
+            tag: true,
           },
         },
       },
@@ -154,6 +199,13 @@ export class PipelineService {
         projectCount: entry.developer.projects.length,
       };
 
+      // Map tags
+      const tags: PipelineTagDto[] = entry.tags.map((pt) => ({
+        id: pt.tag.id,
+        name: pt.tag.name,
+        color: pt.tag.color,
+      }));
+
       return {
         id: entry.id,
         companyId: entry.companyId,
@@ -162,6 +214,7 @@ export class PipelineService {
         notes: entry.notes || undefined,
         isUnlocked: unlockedSet.has(entry.developerId),
         developer,
+        tags,
         createdAt: entry.createdAt,
         updatedAt: entry.updatedAt,
       };
@@ -244,6 +297,11 @@ export class PipelineService {
             },
           },
         },
+        tags: {
+          include: {
+            tag: true,
+          },
+        },
       },
     });
 
@@ -257,6 +315,13 @@ export class PipelineService {
     const techStack = [
       ...new Set(updated.developer.projects.flatMap((p) => p.techStack)),
     ];
+
+    // Map tags
+    const tags: PipelineTagDto[] = updated.tags.map((pt) => ({
+      id: pt.tag.id,
+      name: pt.tag.name,
+      color: pt.tag.color,
+    }));
 
     return {
       id: updated.id,
@@ -275,6 +340,7 @@ export class PipelineService {
         techStack,
         projectCount: updated.developer.projects.length,
       },
+      tags,
       createdAt: updated.createdAt,
       updatedAt: updated.updatedAt,
     };
@@ -312,6 +378,11 @@ export class PipelineService {
             },
           },
         },
+        tags: {
+          include: {
+            tag: true,
+          },
+        },
       },
     });
 
@@ -325,6 +396,13 @@ export class PipelineService {
     const techStack = [
       ...new Set(updated.developer.projects.flatMap((p) => p.techStack)),
     ];
+
+    // Map tags
+    const tags: PipelineTagDto[] = updated.tags.map((pt) => ({
+      id: pt.tag.id,
+      name: pt.tag.name,
+      color: pt.tag.color,
+    }));
 
     return {
       id: updated.id,
@@ -343,6 +421,7 @@ export class PipelineService {
         techStack,
         projectCount: updated.developer.projects.length,
       },
+      tags,
       createdAt: updated.createdAt,
       updatedAt: updated.updatedAt,
     };
@@ -445,6 +524,7 @@ export class PipelineService {
         techStack,
         projectCount: developer.projects.length,
       },
+      tags: [], // New entries have no tags
       createdAt: entry.createdAt,
       updatedAt: entry.updatedAt,
     };
@@ -494,6 +574,11 @@ export class PipelineService {
             },
           },
         },
+        tags: {
+          include: {
+            tag: true,
+          },
+        },
       },
     });
 
@@ -512,6 +597,13 @@ export class PipelineService {
       ...new Set(entry.developer.projects.flatMap((p) => p.techStack)),
     ];
 
+    // Map tags
+    const tags: PipelineTagDto[] = entry.tags.map((pt) => ({
+      id: pt.tag.id,
+      name: pt.tag.name,
+      color: pt.tag.color,
+    }));
+
     return {
       id: entry.id,
       companyId: entry.companyId,
@@ -529,6 +621,7 @@ export class PipelineService {
         techStack,
         projectCount: entry.developer.projects.length,
       },
+      tags,
       createdAt: entry.createdAt,
       updatedAt: entry.updatedAt,
     };
@@ -580,5 +673,57 @@ export class PipelineService {
       },
       data: { stage: newStage },
     });
+  }
+
+  /**
+   * Set tags for a pipeline entry (replace all existing tags)
+   */
+  async setTags(
+    companyId: number,
+    developerId: number,
+    tagIds: number[],
+  ): Promise<PipelineEntryDto> {
+    // Find the pipeline entry
+    const entry = await this.prisma.pipelineEntry.findUnique({
+      where: {
+        companyId_developerId: { companyId, developerId },
+      },
+    });
+
+    if (!entry) {
+      throw new NotFoundException('Developer not found in pipeline');
+    }
+
+    // Verify all tags belong to this company
+    if (tagIds.length > 0) {
+      const tags = await this.prisma.tag.findMany({
+        where: {
+          id: { in: tagIds },
+          companyId,
+        },
+      });
+
+      if (tags.length !== tagIds.length) {
+        throw new BadRequestException('One or more tags not found');
+      }
+    }
+
+    // Delete existing tag assignments
+    await this.prisma.pipelineEntryTag.deleteMany({
+      where: { pipelineEntryId: entry.id },
+    });
+
+    // Create new tag assignments
+    if (tagIds.length > 0) {
+      await this.prisma.pipelineEntryTag.createMany({
+        data: tagIds.map((tagId) => ({
+          pipelineEntryId: entry.id,
+          tagId,
+        })),
+      });
+    }
+
+    // Return updated entry
+    return this.getPipelineEntry(companyId, developerId) as Promise<PipelineEntryDto>;
   }
 }

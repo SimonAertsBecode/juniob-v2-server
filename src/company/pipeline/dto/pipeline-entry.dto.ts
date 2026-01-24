@@ -30,6 +30,20 @@ export class PipelineDeveloperDto {
 }
 
 /**
+ * Tag info for pipeline entry
+ */
+export class PipelineTagDto {
+  @ApiProperty({ description: 'Tag ID' })
+  id: number;
+
+  @ApiProperty({ description: 'Tag name' })
+  name: string;
+
+  @ApiProperty({ description: 'Tag color (hex)' })
+  color: string;
+}
+
+/**
  * Single pipeline entry
  */
 export class PipelineEntryDto {
@@ -66,6 +80,12 @@ export class PipelineEntryDto {
 
   @ApiProperty({ description: 'Developer info' })
   developer: PipelineDeveloperDto;
+
+  @ApiProperty({
+    description: 'Tags assigned to this entry',
+    type: [PipelineTagDto],
+  })
+  tags: PipelineTagDto[];
 
   @ApiProperty({ description: 'Entry created at' })
   createdAt: Date;
