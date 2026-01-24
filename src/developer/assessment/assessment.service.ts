@@ -187,6 +187,7 @@ export class AssessmentService {
         githubUrl: dto.githubUrl,
         projectType: dto.projectType as ProjectType,
         description: dto.description,
+        uiUrl: dto.uiUrl,
         techStack: languages,
         analysis: {
           create: {
@@ -869,6 +870,7 @@ export class AssessmentService {
       githubUrl: project.githubUrl,
       projectType: project.projectType,
       description: project.description ?? undefined,
+      uiUrl: project.uiUrl ?? undefined,
       techStack: project.techStack || [],
       savedAt: project.savedAt ?? undefined,
       lockedUntil: project.lockedUntil ?? undefined,

@@ -300,6 +300,7 @@ model TechnicalProject {
   githubUrl   String
   projectType ProjectType
   description String?
+  uiUrl       String? // Optional live demo/website URL
 
   // Tech stack detected
   techStack String[] // e.g., ["React", "TypeScript", "Node.js"]

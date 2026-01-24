@@ -46,6 +46,9 @@ export class ProjectResponseDto {
   @ApiPropertyOptional({ description: 'Project description' })
   description?: string;
 
+  @ApiPropertyOptional({ description: 'Live demo or website URL' })
+  uiUrl?: string;
+
   @ApiProperty({ type: [String], description: 'Detected tech stack' })
   techStack: string[];
 

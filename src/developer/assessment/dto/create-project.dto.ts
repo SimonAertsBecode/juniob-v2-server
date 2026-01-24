@@ -6,6 +6,7 @@ import {
   MinLength,
   MaxLength,
   Matches,
+  IsUrl,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -58,4 +59,17 @@ export class CreateProjectDto {
   @IsString()
   @MaxLength(1000)
   description?: string;
+
+  @ApiPropertyOptional({
+    description: 'Live demo or website URL for the project (HTTPS only)',
+    example: 'https://my-project.vercel.app',
+    maxLength: 500,
+  })
+  @IsOptional()
+  @IsUrl(
+    { protocols: ['https'], require_protocol: true },
+    { message: 'UI URL must be a valid HTTPS URL (e.g., https://example.com)' },
+  )
+  @MaxLength(500)
+  uiUrl?: string;
 }
