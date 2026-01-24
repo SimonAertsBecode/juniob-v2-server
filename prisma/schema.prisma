@@ -149,6 +149,9 @@ model Developer {
   // Assessment status
   assessmentStatus AssessmentStatus @default(REGISTERING)
 
+  // Visibility to companies (can only be true when fully assessed)
+  isVisible Boolean @default(false)
+
   // Email verification
   emailVerified          Boolean @default(false)
   emailVerificationToken String?

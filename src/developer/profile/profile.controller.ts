@@ -4,6 +4,7 @@ import {
   Put,
   Post,
   Delete,
+  Patch,
   Body,
   Param,
   Query,
@@ -30,6 +31,8 @@ import {
   StackSearchResponseDto,
   TechnicalProfileResponseDto,
   UpdateTechnicalProfileDto,
+  UpdateVisibilityDto,
+  VisibilityResponseDto,
 } from './dto';
 
 @ApiTags('Developer - Profile')
@@ -66,7 +69,9 @@ export class ProfileController {
   }
 
   @Get('technical')
-  @ApiOperation({ summary: 'Get technical profile (developer type + experiences)' })
+  @ApiOperation({
+    summary: 'Get technical profile (developer type + experiences)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Technical profile',
@@ -83,7 +88,10 @@ export class ProfileController {
   }
 
   @Put('technical')
-  @ApiOperation({ summary: 'Update or create technical profile (developer type + experiences)' })
+  @ApiOperation({
+    summary:
+      'Update or create technical profile (developer type + experiences)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Updated technical profile',
@@ -98,6 +106,37 @@ export class ProfileController {
     @Body() dto: UpdateTechnicalProfileDto,
   ): Promise<TechnicalProfileResponseDto> {
     return this.profileService.updateTechnicalProfile(developerId, dto);
+  }
+
+  @Get('visibility')
+  @ApiOperation({ summary: 'Get visibility status and eligibility' })
+  @ApiResponse({
+    status: 200,
+    description: 'Visibility status',
+    type: VisibilityResponseDto,
+  })
+  async getVisibility(
+    @GetCurrentUserId() developerId: number,
+  ): Promise<VisibilityResponseDto> {
+    return this.profileService.getVisibility(developerId);
+  }
+
+  @Patch('visibility')
+  @ApiOperation({ summary: 'Toggle profile visibility to companies' })
+  @ApiResponse({
+    status: 200,
+    description: 'Updated visibility status',
+    type: VisibilityResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Cannot toggle visibility (requirements not met)',
+  })
+  async updateVisibility(
+    @GetCurrentUserId() developerId: number,
+    @Body() dto: UpdateVisibilityDto,
+  ): Promise<VisibilityResponseDto> {
+    return this.profileService.updateVisibility(developerId, dto.isVisible);
   }
 
   @Get('stacks')
