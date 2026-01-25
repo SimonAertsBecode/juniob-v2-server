@@ -25,8 +25,10 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      // forbidNonWhitelisted: true,
-      // transform: true,
+      transform: true,
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
       exceptionFactory: (errors) => {
         const result = errors.reduce(
           (acc, error) => {

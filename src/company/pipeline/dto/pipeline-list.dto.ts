@@ -1,4 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptional, IsString, IsEnum, IsInt, Min, Max } from 'class-validator';
+import { Type } from 'class-transformer';
 import { PipelineEntryDto } from './pipeline-entry.dto';
 
 /**
@@ -36,24 +38,39 @@ export class PipelineQueryDto {
       'REJECTED',
     ],
   })
+  @IsOptional()
+  @IsString()
   stage?: string;
 
   @ApiPropertyOptional({
     description: 'Filter by tag IDs (comma-separated)',
     example: '1,2,3',
   })
+  @IsOptional()
+  @IsString()
   tagIds?: string;
 
   @ApiPropertyOptional({
     description: 'Search by developer email',
     example: 'john@example.com',
   })
+  @IsOptional()
+  @IsString()
   search?: string;
 
   @ApiPropertyOptional({ description: 'Limit', default: 50 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
   limit?: number;
 
   @ApiPropertyOptional({ description: 'Offset', default: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
   offset?: number;
 
   @ApiPropertyOptional({
@@ -61,6 +78,8 @@ export class PipelineQueryDto {
     enum: ['createdAt', 'updatedAt', 'stage'],
     default: 'updatedAt',
   })
+  @IsOptional()
+  @IsEnum(['createdAt', 'updatedAt', 'stage'])
   sortBy?: string;
 
   @ApiPropertyOptional({
@@ -68,5 +87,7 @@ export class PipelineQueryDto {
     enum: ['asc', 'desc'],
     default: 'desc',
   })
+  @IsOptional()
+  @IsEnum(['asc', 'desc'])
   sortOrder?: string;
 }
