@@ -37,7 +37,6 @@ export class InvitationService {
       where: {
         companyId,
         candidateEmail: email,
-        status: { in: [InvitationStatus.PENDING, InvitationStatus.ACCEPTED] },
       },
     });
 
@@ -57,6 +56,14 @@ export class InvitationService {
       throw new NotFoundException('Company not found');
     }
 
+    // Check if developer already exists
+    const developer = await this.prisma.developer.findUnique({
+      where: { email },
+    });
+
+    // For non-registered developers, we always send an email since that's the only way to reach them
+    const shouldSendEmail = dto.sendEmail || !developer;
+
     // Create invitation (expires in 7 days)
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
@@ -67,24 +74,19 @@ export class InvitationService {
         candidateEmail: email,
         message: dto.message,
         expiresAt,
-        status: dto.sendEmail
+        status: shouldSendEmail
           ? InvitationStatus.PENDING
           : InvitationStatus.TRACKED,
-        sentAt: dto.sendEmail ? new Date() : null,
+        sentAt: shouldSendEmail ? new Date() : null,
       },
     });
 
-    // Send email if requested (async, don't block)
-    if (dto.sendEmail) {
+    // Send email if needed (async, don't block)
+    if (shouldSendEmail) {
       this.emailService
         .sendInvitationEmail(email, company.name, invitation.token, dto.message)
         .catch((err) => console.error('Failed to send invitation email:', err));
     }
-
-    // Check if developer already exists and create pipeline entry
-    const developer = await this.prisma.developer.findUnique({
-      where: { email },
-    });
 
     if (developer) {
       // Developer already registered, create pipeline entry

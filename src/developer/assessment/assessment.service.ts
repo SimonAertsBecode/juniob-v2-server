@@ -30,6 +30,7 @@ import {
   ProjectAnalysis,
   HireRecommendation,
   JuniorLevel,
+  PipelineStage,
 } from '../../../prisma/generated/prisma';
 
 const MAX_PROJECTS = 3;
@@ -377,6 +378,9 @@ export class AssessmentService {
       data: { assessmentStatus: AssessmentStatus.PROJECTS_SUBMITTED },
     });
 
+    // Sync pipeline entries
+    await this.syncPipelineStage(developerId, 'PROJECTS_SUBMITTED');
+
     this.logger.log(
       `Triggered report regeneration for developer ${developerId}`,
     );
@@ -512,6 +516,9 @@ export class AssessmentService {
       where: { id: project.developerId },
       data: { assessmentStatus: AssessmentStatus.ANALYZING },
     });
+
+    // Sync pipeline entries
+    await this.syncPipelineStage(project.developerId, 'ANALYZING');
 
     try {
       // Get authenticated Octokit for the developer
@@ -785,6 +792,9 @@ export class AssessmentService {
       data: { assessmentStatus: AssessmentStatus.ASSESSED },
     });
 
+    // Sync pipeline entries
+    await this.syncPipelineStage(developerId, 'ASSESSED');
+
     this.logger.log(
       `Successfully generated hiring report for developer ${developerId}`,
     );
@@ -821,7 +831,33 @@ export class AssessmentService {
         where: { id: developerId },
         data: { assessmentStatus: AssessmentStatus.PROJECTS_SUBMITTED },
       });
+
+      // Sync pipeline entries
+      await this.syncPipelineStage(developerId, 'PROJECTS_SUBMITTED');
     }
+  }
+
+  /**
+   * Sync pipeline stages when developer's assessment status changes
+   * Only updates entries not in terminal states (UNLOCKED, HIRED, REJECTED)
+   */
+  private async syncPipelineStage(
+    developerId: number,
+    newStage: PipelineStage,
+  ): Promise<void> {
+    await this.prisma.pipelineEntry.updateMany({
+      where: {
+        developerId,
+        stage: {
+          notIn: ['UNLOCKED', 'HIRED', 'REJECTED'],
+        },
+      },
+      data: { stage: newStage },
+    });
+
+    this.logger.log(
+      `Synced pipeline stage for developer ${developerId} to ${newStage}`,
+    );
   }
 
   private async handleProjectDeletion(developerId: number): Promise<void> {
@@ -838,12 +874,18 @@ export class AssessmentService {
         where: { id: developerId },
         data: { assessmentStatus: AssessmentStatus.REGISTERING },
       });
+
+      // Sync pipeline entries
+      await this.syncPipelineStage(developerId, 'REGISTERING');
     } else {
       // Set to pending analysis - needs regeneration
       await this.prisma.developer.update({
         where: { id: developerId },
         data: { assessmentStatus: AssessmentStatus.PENDING_ANALYSIS },
       });
+
+      // Sync pipeline entries
+      await this.syncPipelineStage(developerId, 'PENDING_ANALYSIS');
     }
   }
 

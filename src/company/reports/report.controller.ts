@@ -3,9 +3,11 @@ import {
   Get,
   Post,
   Param,
+  Query,
   ParseIntPipe,
   HttpCode,
   HttpStatus,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -13,6 +15,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { GetCurrentUserId } from '../../common/decorators';
 import { ReportService } from './report.service';
@@ -20,6 +23,7 @@ import {
   ReportPreviewDto,
   FullReportDto,
   UnlockReportResponseDto,
+  BatchReportsDto,
 } from './dto';
 
 @ApiTags('Company - Reports')
@@ -27,6 +31,53 @@ import {
 @Controller('company/reports')
 export class ReportController {
   constructor(private reportService: ReportService) {}
+
+  @Get('batch')
+  @ApiOperation({
+    summary: 'Get multiple reports for comparison (2-4 developers)',
+  })
+  @ApiQuery({
+    name: 'developerIds',
+    description: 'Comma-separated developer IDs (e.g., 1,2,3)',
+    required: true,
+    type: String,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Batch reports (full for unlocked, preview for locked)',
+    type: BatchReportsDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid developer IDs or less than 2 IDs provided',
+  })
+  async getBatchReports(
+    @GetCurrentUserId() companyId: number,
+    @Query('developerIds') developerIdsStr: string,
+  ): Promise<BatchReportsDto> {
+    if (!developerIdsStr) {
+      throw new BadRequestException('developerIds query parameter is required');
+    }
+
+    const developerIds = developerIdsStr
+      .split(',')
+      .map((id) => parseInt(id.trim(), 10))
+      .filter((id) => !isNaN(id));
+
+    if (developerIds.length < 2) {
+      throw new BadRequestException(
+        'At least 2 developer IDs are required for comparison',
+      );
+    }
+
+    if (developerIds.length > 4) {
+      throw new BadRequestException(
+        'Maximum 4 developer IDs allowed for comparison',
+      );
+    }
+
+    return this.reportService.getBatchReports(companyId, developerIds);
+  }
 
   @Get(':developerId/preview')
   @ApiOperation({ summary: 'Get report preview (no unlock required)' })

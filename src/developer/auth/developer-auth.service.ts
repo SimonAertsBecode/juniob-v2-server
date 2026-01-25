@@ -102,7 +102,7 @@ export class DeveloperAuthService {
         data: {
           status: InvitationStatus.ACCEPTED,
           acceptedAt: new Date(),
-          id: developer.id,
+          developerId: developer.id,
         },
       });
 
@@ -114,6 +114,37 @@ export class DeveloperAuthService {
           stage: 'REGISTERING',
         },
       });
+    } else {
+      // Developer registered without invitation token
+      // Check if there are any pending invitations for this email and link them
+      const pendingInvitations = await this.prisma.invitation.findMany({
+        where: {
+          candidateEmail: dto.email.toLowerCase(),
+          status: InvitationStatus.PENDING,
+          developerId: null,
+        },
+      });
+
+      for (const inv of pendingInvitations) {
+        // Mark invitation as accepted and link to developer
+        await this.prisma.invitation.update({
+          where: { id: inv.id },
+          data: {
+            status: InvitationStatus.ACCEPTED,
+            acceptedAt: new Date(),
+            developerId: developer.id,
+          },
+        });
+
+        // Create pipeline entry for each inviting company
+        await this.prisma.pipelineEntry.create({
+          data: {
+            companyId: inv.companyId,
+            developerId: developer.id,
+            stage: 'REGISTERING',
+          },
+        });
+      }
     }
 
     // Send verification email (don't await - send in background)

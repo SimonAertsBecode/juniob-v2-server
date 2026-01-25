@@ -92,4 +92,20 @@ export class PipelineEntryDto {
 
   @ApiProperty({ description: 'Entry last updated at' })
   updatedAt: Date;
+
+  // Virtual fields for pending invitations (unregistered candidates)
+  @ApiPropertyOptional({
+    description:
+      'True if this entry represents a pending invitation (unregistered candidate)',
+  })
+  isPendingInvitation?: boolean;
+
+  @ApiPropertyOptional({ description: 'Invitation ID if pending invitation' })
+  invitationId?: number;
+
+  @ApiPropertyOptional({
+    description: 'Invitation status if pending invitation',
+    enum: ['PENDING', 'EXPIRED'],
+  })
+  invitationStatus?: 'PENDING' | 'EXPIRED';
 }

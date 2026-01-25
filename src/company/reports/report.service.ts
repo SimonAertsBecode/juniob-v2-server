@@ -14,6 +14,9 @@ import {
   ProjectAnalysisDto,
   HiringReportDto,
   UnlockReportResponseDto,
+  BatchReportsDto,
+  BatchReportItemDto,
+  BatchReportErrorDto,
 } from './dto';
 import {
   AssessmentStatus,
@@ -331,5 +334,57 @@ export class ReportService {
       const data = await this.getReportPreview(companyId, developerId);
       return { type: 'preview', data };
     }
+  }
+
+  /**
+   * Get multiple reports at once (for comparison view)
+   * Returns full reports for unlocked, previews for locked
+   */
+  async getBatchReports(
+    companyId: number,
+    developerIds: number[],
+  ): Promise<BatchReportsDto> {
+    const reports: BatchReportItemDto[] = [];
+    const errors: BatchReportErrorDto[] = [];
+
+    // Limit to 4 reports max for comparison
+    const limitedIds = developerIds.slice(0, 4);
+
+    // Process each developer in parallel
+    const results = await Promise.allSettled(
+      limitedIds.map(async (developerId) => {
+        const isUnlocked = await this.isReportUnlocked(companyId, developerId);
+
+        if (isUnlocked) {
+          const fullReport = await this.getFullReport(companyId, developerId);
+          return {
+            developerId,
+            isUnlocked: true,
+            fullReport,
+          } as BatchReportItemDto;
+        } else {
+          const preview = await this.getReportPreview(companyId, developerId);
+          return {
+            developerId,
+            isUnlocked: false,
+            preview,
+          } as BatchReportItemDto;
+        }
+      }),
+    );
+
+    // Separate successes and failures
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        reports.push(result.value);
+      } else {
+        errors.push({
+          developerId: limitedIds[index],
+          message: result.reason?.message || 'Failed to fetch report',
+        });
+      }
+    });
+
+    return { reports, errors };
   }
 }

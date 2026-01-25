@@ -5,7 +5,10 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { PipelineStage } from '../../../prisma/generated/prisma';
+import {
+  PipelineStage,
+  InvitationStatus,
+} from '../../../prisma/generated/prisma';
 import {
   PipelineEntryDto,
   PipelineDeveloperDto,
@@ -21,12 +24,78 @@ export class PipelineService {
   constructor(private prisma: PrismaService) {}
 
   /**
+   * Get pending invitations (unregistered candidates) for pipeline display
+   * These are invitations where developerId is NULL (candidate hasn't registered yet)
+   */
+  private async getPendingInvitationsForPipeline(
+    companyId: number,
+    search?: string,
+  ): Promise<PipelineEntryDto[]> {
+    const where: any = {
+      companyId,
+      developerId: null, // No developer attached = unregistered
+      status: {
+        in: [InvitationStatus.PENDING, InvitationStatus.EXPIRED],
+      },
+    };
+
+    // Search by candidate email if provided
+    if (search) {
+      where.candidateEmail = {
+        contains: search,
+        mode: 'insensitive',
+      };
+    }
+
+    const invitations = await this.prisma.invitation.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Map invitations to PipelineEntryDto format
+    return invitations.map((inv) => {
+      const isExpired =
+        inv.status === InvitationStatus.EXPIRED ||
+        new Date(inv.expiresAt) < new Date();
+
+      const developer: PipelineDeveloperDto = {
+        id: -inv.id, // Negative ID to distinguish from real developers
+        email: inv.candidateEmail,
+        firstName: undefined,
+        lastName: undefined,
+        assessmentStatus: 'NOT_REGISTERED',
+        overallScore: undefined,
+        techStack: [],
+        projectCount: 0,
+      };
+
+      return {
+        id: -inv.id, // Negative ID to distinguish from real pipeline entries
+        companyId: inv.companyId,
+        developerId: -inv.id, // Negative ID
+        stage: 'INVITED',
+        notes: inv.message || undefined,
+        isUnlocked: false,
+        developer,
+        tags: [],
+        createdAt: inv.createdAt,
+        updatedAt: inv.updatedAt,
+        // Virtual fields for pending invitations
+        isPendingInvitation: true,
+        invitationId: inv.id,
+        invitationStatus: isExpired ? 'EXPIRED' : 'PENDING',
+      };
+    });
+  }
+
+  /**
    * Get pipeline entries for a company (flat list with pagination)
    */
   async getPipeline(
     companyId: number,
     query: PipelineQueryDto,
   ): Promise<PipelineListDto> {
+    console.log(query);
     const limit = Math.min(query.limit || 50, 100);
     const offset = query.offset || 0;
     const sortBy = query.sortBy || 'updatedAt';
@@ -138,9 +207,39 @@ export class PipelineService {
       };
     });
 
+    // Include pending invitations (unregistered candidates) when:
+    // - No stage filter (showing all), or
+    // - Stage filter is INVITED
+    // Don't include if filtering by tags (pending invitations don't have tags)
+    let allEntries = mappedEntries;
+    let adjustedTotal = total;
+
+    const shouldIncludePendingInvitations =
+      (!query.stage || query.stage === 'INVITED') && !query.tagIds;
+
+    if (shouldIncludePendingInvitations) {
+      const pendingInvitations = await this.getPendingInvitationsForPipeline(
+        companyId,
+        query.search,
+      );
+
+      if (pendingInvitations.length > 0) {
+        // If filtering by INVITED, prepend pending invitations
+        // Otherwise, prepend to show them at the top of "All" view
+        if (query.stage === 'INVITED') {
+          allEntries = [...pendingInvitations, ...mappedEntries];
+        } else {
+          // For "All" view, insert pending invitations before other INVITED entries
+          // to keep them grouped together
+          allEntries = [...pendingInvitations, ...mappedEntries];
+        }
+        adjustedTotal = total + pendingInvitations.length;
+      }
+    }
+
     return {
-      entries: mappedEntries,
-      total,
+      entries: allEntries,
+      total: adjustedTotal,
       offset,
       limit,
     };
@@ -220,8 +319,15 @@ export class PipelineService {
       };
     };
 
+    // Get pending invitations and prepend to invited list
+    const pendingInvitations =
+      await this.getPendingInvitationsForPipeline(companyId);
+    const invitedEntries = entries
+      .filter((e) => e.stage === 'INVITED')
+      .map(mapEntry);
+
     return {
-      invited: entries.filter((e) => e.stage === 'INVITED').map(mapEntry),
+      invited: [...pendingInvitations, ...invitedEntries],
       registering: entries
         .filter((e) => e.stage === 'REGISTERING')
         .map(mapEntry),
@@ -243,16 +349,33 @@ export class PipelineService {
    * Get pipeline statistics (count per stage)
    */
   async getPipelineStats(companyId: number): Promise<PipelineStatsDto> {
-    const counts = await this.prisma.pipelineEntry.groupBy({
-      by: ['stage'],
-      where: { companyId },
-      _count: true,
-    });
+    const [counts, pendingInvitationsCount] = await Promise.all([
+      this.prisma.pipelineEntry.groupBy({
+        by: ['stage'],
+        where: { companyId },
+        _count: true,
+      }),
+      // Count pending invitations (unregistered candidates)
+      this.prisma.invitation.count({
+        where: {
+          companyId,
+          developerId: null, // No developer attached = unregistered
+          status: {
+            in: [InvitationStatus.PENDING, InvitationStatus.EXPIRED],
+          },
+        },
+      }),
+    ]);
 
     const statsMap = new Map(counts.map((c) => [c.stage, c._count]));
+    const pipelineTotal = counts.reduce((sum, c) => sum + c._count, 0);
+
+    // Include pending invitations in the INVITED count
+    const invitedCount =
+      (statsMap.get('INVITED') || 0) + pendingInvitationsCount;
 
     return {
-      invited: statsMap.get('INVITED') || 0,
+      invited: invitedCount,
       registering: statsMap.get('REGISTERING') || 0,
       projectsSubmitted: statsMap.get('PROJECTS_SUBMITTED') || 0,
       analyzing: statsMap.get('ANALYZING') || 0,
@@ -261,7 +384,7 @@ export class PipelineService {
       unlocked: statsMap.get('UNLOCKED') || 0,
       hired: statsMap.get('HIRED') || 0,
       rejected: statsMap.get('REJECTED') || 0,
-      total: counts.reduce((sum, c) => sum + c._count, 0),
+      total: pipelineTotal + pendingInvitationsCount,
     };
   }
 
@@ -724,6 +847,9 @@ export class PipelineService {
     }
 
     // Return updated entry
-    return this.getPipelineEntry(companyId, developerId) as Promise<PipelineEntryDto>;
+    return this.getPipelineEntry(
+      companyId,
+      developerId,
+    ) as Promise<PipelineEntryDto>;
   }
 }
