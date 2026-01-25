@@ -1,7 +1,6 @@
 import {
   Injectable,
   NotFoundException,
-  ConflictException,
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -14,14 +13,78 @@ import {
   PipelineDeveloperDto,
   PipelineTagDto,
   PipelineListDto,
-  PipelineGroupedDto,
   PipelineStatsDto,
   PipelineQueryDto,
 } from './dto';
 
+// Type for pipeline entry with includes used in mapping
+type PipelineEntryWithIncludes = {
+  id: number;
+  companyId: number;
+  developerId: number;
+  stage: string;
+  notes: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  developer: {
+    id: number;
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+    assessmentStatus: string;
+    projects: { techStack: string[] }[];
+    hiringReport: { overallScore: number } | null;
+  };
+  tags: {
+    tag: { id: number; name: string; color: string };
+  }[];
+};
+
 @Injectable()
 export class PipelineService {
   constructor(private prisma: PrismaService) {}
+
+  /**
+   * Map a pipeline entry with includes to DTO format
+   */
+  private mapEntryToDto(
+    entry: PipelineEntryWithIncludes,
+    isUnlocked: boolean,
+  ): PipelineEntryDto {
+    const techStack = [
+      ...new Set(entry.developer.projects.flatMap((p) => p.techStack)),
+    ];
+
+    const developer: PipelineDeveloperDto = {
+      id: entry.developer.id,
+      email: entry.developer.email,
+      firstName: entry.developer.firstName || undefined,
+      lastName: entry.developer.lastName || undefined,
+      assessmentStatus: entry.developer.assessmentStatus,
+      overallScore: entry.developer.hiringReport?.overallScore || undefined,
+      techStack,
+      projectCount: entry.developer.projects.length,
+    };
+
+    const tags: PipelineTagDto[] = entry.tags.map((pt) => ({
+      id: pt.tag.id,
+      name: pt.tag.name,
+      color: pt.tag.color,
+    }));
+
+    return {
+      id: entry.id,
+      companyId: entry.companyId,
+      developerId: entry.developerId,
+      stage: entry.stage,
+      notes: entry.notes || undefined,
+      isUnlocked,
+      developer,
+      tags,
+      createdAt: entry.createdAt,
+      updatedAt: entry.updatedAt,
+    };
+  }
 
   /**
    * Get pending invitations (unregistered candidates) for pipeline display
@@ -95,7 +158,6 @@ export class PipelineService {
     companyId: number,
     query: PipelineQueryDto,
   ): Promise<PipelineListDto> {
-    console.log(query);
     const limit = Math.min(query.limit || 50, 100);
     const offset = query.offset || 0;
     const sortBy = query.sortBy || 'updatedAt';
@@ -169,43 +231,9 @@ export class PipelineService {
     });
     const unlockedSet = new Set(unlockedReports.map((u) => u.developerId));
 
-    const mappedEntries: PipelineEntryDto[] = entries.map((entry) => {
-      // Collect all tech stacks from projects
-      const techStack = [
-        ...new Set(entry.developer.projects.flatMap((p) => p.techStack)),
-      ];
-
-      const developer: PipelineDeveloperDto = {
-        id: entry.developer.id,
-        email: entry.developer.email,
-        firstName: entry.developer.firstName || undefined,
-        lastName: entry.developer.lastName || undefined,
-        assessmentStatus: entry.developer.assessmentStatus,
-        overallScore: entry.developer.hiringReport?.overallScore || undefined,
-        techStack,
-        projectCount: entry.developer.projects.length,
-      };
-
-      // Map tags
-      const tags: PipelineTagDto[] = entry.tags.map((pt) => ({
-        id: pt.tag.id,
-        name: pt.tag.name,
-        color: pt.tag.color,
-      }));
-
-      return {
-        id: entry.id,
-        companyId: entry.companyId,
-        developerId: entry.developerId,
-        stage: entry.stage,
-        notes: entry.notes || undefined,
-        isUnlocked: unlockedSet.has(entry.developerId),
-        developer,
-        tags,
-        createdAt: entry.createdAt,
-        updatedAt: entry.updatedAt,
-      };
-    });
+    const mappedEntries: PipelineEntryDto[] = entries.map((entry) =>
+      this.mapEntryToDto(entry, unlockedSet.has(entry.developerId)),
+    );
 
     // Include pending invitations (unregistered candidates) when:
     // - No stage filter (showing all), or
@@ -242,106 +270,6 @@ export class PipelineService {
       total: adjustedTotal,
       offset,
       limit,
-    };
-  }
-
-  /**
-   * Get pipeline entries grouped by stage
-   */
-  async getPipelineGrouped(companyId: number): Promise<PipelineGroupedDto> {
-    const entries = await this.prisma.pipelineEntry.findMany({
-      where: { companyId },
-      include: {
-        developer: {
-          include: {
-            projects: {
-              select: { techStack: true },
-            },
-            hiringReport: {
-              select: { overallScore: true },
-            },
-          },
-        },
-        tags: {
-          include: {
-            tag: true,
-          },
-        },
-      },
-      orderBy: { updatedAt: 'desc' },
-    });
-
-    // Check which developers have unlocked reports for this company
-    const developerIds = entries.map((e) => e.developerId);
-    const unlockedReports = await this.prisma.unlockedReport.findMany({
-      where: {
-        companyId,
-        developerId: { in: developerIds },
-      },
-      select: { developerId: true },
-    });
-    const unlockedSet = new Set(unlockedReports.map((u) => u.developerId));
-
-    const mapEntry = (entry: (typeof entries)[0]): PipelineEntryDto => {
-      const techStack = [
-        ...new Set(entry.developer.projects.flatMap((p) => p.techStack)),
-      ];
-
-      const developer: PipelineDeveloperDto = {
-        id: entry.developer.id,
-        email: entry.developer.email,
-        firstName: entry.developer.firstName || undefined,
-        lastName: entry.developer.lastName || undefined,
-        assessmentStatus: entry.developer.assessmentStatus,
-        overallScore: entry.developer.hiringReport?.overallScore || undefined,
-        techStack,
-        projectCount: entry.developer.projects.length,
-      };
-
-      // Map tags
-      const tags: PipelineTagDto[] = entry.tags.map((pt) => ({
-        id: pt.tag.id,
-        name: pt.tag.name,
-        color: pt.tag.color,
-      }));
-
-      return {
-        id: entry.id,
-        companyId: entry.companyId,
-        developerId: entry.developerId,
-        stage: entry.stage,
-        notes: entry.notes || undefined,
-        isUnlocked: unlockedSet.has(entry.developerId),
-        developer,
-        tags,
-        createdAt: entry.createdAt,
-        updatedAt: entry.updatedAt,
-      };
-    };
-
-    // Get pending invitations and prepend to invited list
-    const pendingInvitations =
-      await this.getPendingInvitationsForPipeline(companyId);
-    const invitedEntries = entries
-      .filter((e) => e.stage === 'INVITED')
-      .map(mapEntry);
-
-    return {
-      invited: [...pendingInvitations, ...invitedEntries],
-      registering: entries
-        .filter((e) => e.stage === 'REGISTERING')
-        .map(mapEntry),
-      projectsSubmitted: entries
-        .filter((e) => e.stage === 'PROJECTS_SUBMITTED')
-        .map(mapEntry),
-      analyzing: entries.filter((e) => e.stage === 'ANALYZING').map(mapEntry),
-      pendingAnalysis: entries
-        .filter((e) => e.stage === 'PENDING_ANALYSIS')
-        .map(mapEntry),
-      assessed: entries.filter((e) => e.stage === 'ASSESSED').map(mapEntry),
-      unlocked: entries.filter((e) => e.stage === 'UNLOCKED').map(mapEntry),
-      hired: entries.filter((e) => e.stage === 'HIRED').map(mapEntry),
-      rejected: entries.filter((e) => e.stage === 'REJECTED').map(mapEntry),
     };
   }
 
@@ -435,222 +363,7 @@ export class PipelineService {
       },
     });
 
-    const techStack = [
-      ...new Set(updated.developer.projects.flatMap((p) => p.techStack)),
-    ];
-
-    // Map tags
-    const tags: PipelineTagDto[] = updated.tags.map((pt) => ({
-      id: pt.tag.id,
-      name: pt.tag.name,
-      color: pt.tag.color,
-    }));
-
-    return {
-      id: updated.id,
-      companyId: updated.companyId,
-      developerId: updated.developerId,
-      stage: updated.stage,
-      notes: updated.notes || undefined,
-      isUnlocked: !!unlocked,
-      developer: {
-        id: updated.developer.id,
-        email: updated.developer.email,
-        firstName: updated.developer.firstName || undefined,
-        lastName: updated.developer.lastName || undefined,
-        assessmentStatus: updated.developer.assessmentStatus,
-        overallScore: updated.developer.hiringReport?.overallScore || undefined,
-        techStack,
-        projectCount: updated.developer.projects.length,
-      },
-      tags,
-      createdAt: updated.createdAt,
-      updatedAt: updated.updatedAt,
-    };
-  }
-
-  /**
-   * Update pipeline notes
-   */
-  async updateNotes(
-    companyId: number,
-    developerId: number,
-    notes: string | null,
-  ): Promise<PipelineEntryDto> {
-    const entry = await this.prisma.pipelineEntry.findUnique({
-      where: {
-        companyId_developerId: { companyId, developerId },
-      },
-    });
-
-    if (!entry) {
-      throw new NotFoundException('Developer not found in pipeline');
-    }
-
-    const updated = await this.prisma.pipelineEntry.update({
-      where: { id: entry.id },
-      data: { notes },
-      include: {
-        developer: {
-          include: {
-            projects: {
-              select: { techStack: true },
-            },
-            hiringReport: {
-              select: { overallScore: true },
-            },
-          },
-        },
-        tags: {
-          include: {
-            tag: true,
-          },
-        },
-      },
-    });
-
-    // Check if unlocked
-    const unlocked = await this.prisma.unlockedReport.findUnique({
-      where: {
-        companyId_developerId: { companyId, developerId },
-      },
-    });
-
-    const techStack = [
-      ...new Set(updated.developer.projects.flatMap((p) => p.techStack)),
-    ];
-
-    // Map tags
-    const tags: PipelineTagDto[] = updated.tags.map((pt) => ({
-      id: pt.tag.id,
-      name: pt.tag.name,
-      color: pt.tag.color,
-    }));
-
-    return {
-      id: updated.id,
-      companyId: updated.companyId,
-      developerId: updated.developerId,
-      stage: updated.stage,
-      notes: updated.notes || undefined,
-      isUnlocked: !!unlocked,
-      developer: {
-        id: updated.developer.id,
-        email: updated.developer.email,
-        firstName: updated.developer.firstName || undefined,
-        lastName: updated.developer.lastName || undefined,
-        assessmentStatus: updated.developer.assessmentStatus,
-        overallScore: updated.developer.hiringReport?.overallScore || undefined,
-        techStack,
-        projectCount: updated.developer.projects.length,
-      },
-      tags,
-      createdAt: updated.createdAt,
-      updatedAt: updated.updatedAt,
-    };
-  }
-
-  /**
-   * Add developer to pipeline (if not already present)
-   */
-  async addToPipeline(
-    companyId: number,
-    developerId: number,
-    notes?: string,
-  ): Promise<PipelineEntryDto> {
-    // Check if developer exists
-    const developer = await this.prisma.developer.findUnique({
-      where: { id: developerId },
-      include: {
-        projects: {
-          select: { techStack: true },
-        },
-        hiringReport: {
-          select: { overallScore: true },
-        },
-      },
-    });
-
-    if (!developer) {
-      throw new NotFoundException('Developer not found');
-    }
-
-    // Check if already in pipeline
-    const existing = await this.prisma.pipelineEntry.findUnique({
-      where: {
-        companyId_developerId: { companyId, developerId },
-      },
-    });
-
-    if (existing) {
-      throw new ConflictException('Developer already in pipeline');
-    }
-
-    // Determine initial stage based on developer's assessment status
-    let stage: PipelineStage = 'INVITED';
-    switch (developer.assessmentStatus) {
-      case 'REGISTERING':
-        stage = 'REGISTERING';
-        break;
-      case 'PROJECTS_SUBMITTED':
-        stage = 'PROJECTS_SUBMITTED';
-        break;
-      case 'ANALYZING':
-        stage = 'ANALYZING';
-        break;
-      case 'PENDING_ANALYSIS':
-        stage = 'PENDING_ANALYSIS';
-        break;
-      case 'ASSESSED':
-        stage = 'ASSESSED';
-        break;
-    }
-
-    // Check if company has unlocked this developer
-    const unlocked = await this.prisma.unlockedReport.findUnique({
-      where: {
-        companyId_developerId: { companyId, developerId },
-      },
-    });
-
-    if (unlocked) {
-      stage = 'UNLOCKED';
-    }
-
-    const entry = await this.prisma.pipelineEntry.create({
-      data: {
-        companyId,
-        developerId,
-        stage,
-        notes,
-      },
-    });
-
-    const techStack = [
-      ...new Set(developer.projects.flatMap((p) => p.techStack)),
-    ];
-
-    return {
-      id: entry.id,
-      companyId: entry.companyId,
-      developerId: entry.developerId,
-      stage: entry.stage,
-      notes: entry.notes || undefined,
-      isUnlocked: !!unlocked,
-      developer: {
-        id: developer.id,
-        email: developer.email,
-        firstName: developer.firstName || undefined,
-        lastName: developer.lastName || undefined,
-        assessmentStatus: developer.assessmentStatus,
-        overallScore: developer.hiringReport?.overallScore || undefined,
-        techStack,
-        projectCount: developer.projects.length,
-      },
-      tags: [], // New entries have no tags
-      createdAt: entry.createdAt,
-      updatedAt: entry.updatedAt,
-    };
+    return this.mapEntryToDto(updated, !!unlocked);
   }
 
   /**
@@ -716,38 +429,7 @@ export class PipelineService {
       },
     });
 
-    const techStack = [
-      ...new Set(entry.developer.projects.flatMap((p) => p.techStack)),
-    ];
-
-    // Map tags
-    const tags: PipelineTagDto[] = entry.tags.map((pt) => ({
-      id: pt.tag.id,
-      name: pt.tag.name,
-      color: pt.tag.color,
-    }));
-
-    return {
-      id: entry.id,
-      companyId: entry.companyId,
-      developerId: entry.developerId,
-      stage: entry.stage,
-      notes: entry.notes || undefined,
-      isUnlocked: !!unlocked,
-      developer: {
-        id: entry.developer.id,
-        email: entry.developer.email,
-        firstName: entry.developer.firstName || undefined,
-        lastName: entry.developer.lastName || undefined,
-        assessmentStatus: entry.developer.assessmentStatus,
-        overallScore: entry.developer.hiringReport?.overallScore || undefined,
-        techStack,
-        projectCount: entry.developer.projects.length,
-      },
-      tags,
-      createdAt: entry.createdAt,
-      updatedAt: entry.updatedAt,
-    };
+    return this.mapEntryToDto(entry, !!unlocked);
   }
 
   /**
@@ -831,20 +513,23 @@ export class PipelineService {
       }
     }
 
-    // Delete existing tag assignments
-    await this.prisma.pipelineEntryTag.deleteMany({
-      where: { pipelineEntryId: entry.id },
-    });
-
-    // Create new tag assignments
-    if (tagIds.length > 0) {
-      await this.prisma.pipelineEntryTag.createMany({
-        data: tagIds.map((tagId) => ({
-          pipelineEntryId: entry.id,
-          tagId,
-        })),
+    // Use transaction to ensure atomicity
+    await this.prisma.$transaction(async (tx) => {
+      // Delete existing tag assignments
+      await tx.pipelineEntryTag.deleteMany({
+        where: { pipelineEntryId: entry.id },
       });
-    }
+
+      // Create new tag assignments
+      if (tagIds.length > 0) {
+        await tx.pipelineEntryTag.createMany({
+          data: tagIds.map((tagId) => ({
+            pipelineEntryId: entry.id,
+            tagId,
+          })),
+        });
+      }
+    });
 
     // Return updated entry
     return this.getPipelineEntry(

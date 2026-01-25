@@ -1,5 +1,5 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsEnum } from 'class-validator';
 
 /**
  * DTO for updating pipeline stage
@@ -15,35 +15,4 @@ export class UpdatePipelineStageDto {
     message: 'Only HIRED or REJECTED stages can be manually updated',
   })
   stage: 'HIRED' | 'REJECTED';
-}
-
-/**
- * DTO for updating pipeline notes
- */
-export class UpdatePipelineNotesDto {
-  @ApiPropertyOptional({
-    description: 'Private notes about the candidate',
-    maxLength: 2000,
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(2000)
-  notes?: string;
-}
-
-/**
- * DTO for adding developer to pipeline
- */
-export class AddToPipelineDto {
-  @ApiProperty({ description: 'Developer ID to add to pipeline' })
-  developerId: number;
-
-  @ApiPropertyOptional({
-    description: 'Initial notes about the candidate',
-    maxLength: 2000,
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(2000)
-  notes?: string;
 }

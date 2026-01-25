@@ -2,59 +2,6 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PipelineEntryDto } from './pipeline-entry.dto';
 
 /**
- * Pipeline entries grouped by stage
- */
-export class PipelineGroupedDto {
-  @ApiProperty({
-    description: 'Candidates invited but not yet registered',
-    type: [PipelineEntryDto],
-  })
-  invited: PipelineEntryDto[];
-
-  @ApiProperty({
-    description: 'Candidates currently registering',
-    type: [PipelineEntryDto],
-  })
-  registering: PipelineEntryDto[];
-
-  @ApiProperty({
-    description: 'Candidates who submitted projects',
-    type: [PipelineEntryDto],
-  })
-  projectsSubmitted: PipelineEntryDto[];
-
-  @ApiProperty({
-    description: 'Candidates with analysis in progress',
-    type: [PipelineEntryDto],
-  })
-  analyzing: PipelineEntryDto[];
-
-  @ApiProperty({
-    description: 'Candidates pending analysis regeneration',
-    type: [PipelineEntryDto],
-  })
-  pendingAnalysis: PipelineEntryDto[];
-
-  @ApiProperty({
-    description: 'Candidates with completed assessment',
-    type: [PipelineEntryDto],
-  })
-  assessed: PipelineEntryDto[];
-
-  @ApiProperty({
-    description: 'Candidates with unlocked reports',
-    type: [PipelineEntryDto],
-  })
-  unlocked: PipelineEntryDto[];
-
-  @ApiProperty({ description: 'Hired candidates', type: [PipelineEntryDto] })
-  hired: PipelineEntryDto[];
-
-  @ApiProperty({ description: 'Rejected candidates', type: [PipelineEntryDto] })
-  rejected: PipelineEntryDto[];
-}
-
-/**
  * Pipeline list response (flat list with pagination)
  */
 export class PipelineListDto {

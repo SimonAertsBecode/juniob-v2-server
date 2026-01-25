@@ -1,7 +1,6 @@
 import {
   Controller,
   Get,
-  Post,
   Patch,
   Delete,
   Param,
@@ -10,6 +9,7 @@ import {
   ParseIntPipe,
   HttpCode,
   HttpStatus,
+  NotFoundException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -24,12 +24,9 @@ import { PipelineService } from './pipeline.service';
 import {
   PipelineEntryDto,
   PipelineListDto,
-  PipelineGroupedDto,
   PipelineStatsDto,
   PipelineQueryDto,
   UpdatePipelineStageDto,
-  UpdatePipelineNotesDto,
-  AddToPipelineDto,
   SetPipelineTagsDto,
 } from './dto';
 
@@ -78,22 +75,6 @@ export class PipelineController {
     return this.pipelineService.getPipeline(companyId, query);
   }
 
-  @Get('grouped')
-  @ApiOperation({
-    summary: 'Get pipeline grouped by stage',
-    description: 'Get all candidates grouped by their pipeline stage',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Pipeline entries grouped by stage',
-    type: PipelineGroupedDto,
-  })
-  async getPipelineGrouped(
-    @GetCurrentUserId() companyId: number,
-  ): Promise<PipelineGroupedDto> {
-    return this.pipelineService.getPipelineGrouped(companyId);
-  }
-
   @Get('stats')
   @ApiOperation({
     summary: 'Get pipeline statistics',
@@ -134,38 +115,9 @@ export class PipelineController {
       developerId,
     );
     if (!entry) {
-      throw new Error('Developer not found in pipeline');
+      throw new NotFoundException('Developer not found in pipeline');
     }
     return entry;
-  }
-
-  @Post()
-  @ApiOperation({
-    summary: 'Add developer to pipeline',
-    description: 'Add a developer to the company pipeline',
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'Developer added to pipeline',
-    type: PipelineEntryDto,
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Developer not found',
-  })
-  @ApiResponse({
-    status: 409,
-    description: 'Developer already in pipeline',
-  })
-  async addToPipeline(
-    @GetCurrentUserId() companyId: number,
-    @Body() dto: AddToPipelineDto,
-  ): Promise<PipelineEntryDto> {
-    return this.pipelineService.addToPipeline(
-      companyId,
-      dto.developerId,
-      dto.notes,
-    );
   }
 
   @Patch(':developerId/stage')
@@ -190,33 +142,6 @@ export class PipelineController {
     @Body() dto: UpdatePipelineStageDto,
   ): Promise<PipelineEntryDto> {
     return this.pipelineService.updateStage(companyId, developerId, dto.stage);
-  }
-
-  @Patch(':developerId/notes')
-  @ApiOperation({
-    summary: 'Update pipeline notes',
-    description: 'Update private notes about a candidate',
-  })
-  @ApiParam({ name: 'developerId', description: 'Developer ID' })
-  @ApiResponse({
-    status: 200,
-    description: 'Notes updated',
-    type: PipelineEntryDto,
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Developer not found in pipeline',
-  })
-  async updateNotes(
-    @GetCurrentUserId() companyId: number,
-    @Param('developerId', ParseIntPipe) developerId: number,
-    @Body() dto: UpdatePipelineNotesDto,
-  ): Promise<PipelineEntryDto> {
-    return this.pipelineService.updateNotes(
-      companyId,
-      developerId,
-      dto.notes || null,
-    );
   }
 
   @Patch(':developerId/tags')
