@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
+import { AuthModule } from './auth/auth.module';
 import { CompanyModule } from './company/company.module';
 import { DeveloperModule } from './developer/developer.module';
 import { EmailModule } from './email/email.module';
@@ -18,6 +19,7 @@ import { AtGuard } from './common/guards';
       envFilePath: '.env',
     }),
     PrismaModule,
+    AuthModule,
     EmailModule,
     EncryptionModule,
     GithubModule,

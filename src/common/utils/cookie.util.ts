@@ -22,7 +22,7 @@ export function setAuthCookies(
   });
 
   // Refresh token cookie (7 days)
-  res.cookie('jwt', refreshToken, {
+  res.cookie('refresh_token', refreshToken, {
     httpOnly: true,
     secure: isProduction,
     sameSite: 'lax',
@@ -42,5 +42,5 @@ export function clearAuthCookies(res: Response): void {
   };
 
   res.clearCookie('access_token', cookieOptions);
-  res.clearCookie('jwt', cookieOptions);
+  res.clearCookie('refresh_token', cookieOptions);
 }

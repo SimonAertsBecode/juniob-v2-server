@@ -1,6 +1,7 @@
 // JWT payload for authenticated users
 export type JwtPayload = {
   sub: number; // User ID (companyId or developerId)
+  tableId: number; // User table (developer or company) id
   email: string;
   role: 'COMPANY' | 'DEVELOPER';
 };

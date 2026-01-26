@@ -135,9 +135,7 @@ export class AiService {
   /**
    * Validate and normalize technical assessment structure
    */
-  private normalizeSkillRating(
-    rating: any,
-  ): TechnicalSkillRating | undefined {
+  private normalizeSkillRating(rating: any): TechnicalSkillRating | undefined {
     if (!rating || typeof rating !== 'object') return undefined;
 
     const validRatings = ['STRONG', 'ADEQUATE', 'WEAK'];
@@ -231,7 +229,9 @@ export class AiService {
               rating: 'ADEQUATE',
               observations: [],
             },
-            coreFundamentals: this.normalizeSkillRating(ta.coreFundamentals) || {
+            coreFundamentals: this.normalizeSkillRating(
+              ta.coreFundamentals,
+            ) || {
               rating: 'ADEQUATE',
               observations: [],
             },
@@ -239,7 +239,9 @@ export class AiService {
               rating: 'ADEQUATE',
               observations: [],
             },
-            toolingPractices: this.normalizeSkillRating(ta.toolingPractices) || {
+            toolingPractices: this.normalizeSkillRating(
+              ta.toolingPractices,
+            ) || {
               rating: 'ADEQUATE',
               observations: [],
             },
@@ -268,7 +270,9 @@ export class AiService {
           const eh = parsed.errorHandling;
           const validQualities = ['GOOD', 'PARTIAL', 'POOR', 'NONE'];
           errorHandling = {
-            quality: validQualities.includes(eh.quality) ? eh.quality : 'PARTIAL',
+            quality: validQualities.includes(eh.quality)
+              ? eh.quality
+              : 'PARTIAL',
             observations: eh.observations || '',
           };
         }

@@ -14,6 +14,11 @@ datasource db {
 // ENUMS
 // ============================================
 
+enum UserRole {
+  DEVELOPER
+  COMPANY
+}
+
 enum InvitationStatus {
   PENDING // Invitation sent, waiting for developer to register
   ACCEPTED // Developer registered with this invitation
@@ -82,14 +87,41 @@ enum DeveloperType {
 }
 
 // ============================================
+// USER MODEL (Unified Authentication)
+// ============================================
+
+model User {
+  id                     Int       @id @default(autoincrement())
+  email                  String    @unique
+  hashedPassword         String
+  hashedRefreshToken     String?
+  role                   UserRole
+
+  // Email verification
+  emailVerified          Boolean   @default(false)
+  emailVerificationToken String?
+
+  // Password reset
+  passwordResetToken     String?
+  passwordResetExpiresAt DateTime?
+
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  // Relations - one-to-one with role-specific profiles
+  developer              Developer?
+  company                Company?
+
+  @@index([email])
+}
+
+// ============================================
 // COMPANY MODELS
 // ============================================
 
 model Company {
-  id                 Int     @id @default(autoincrement())
-  email              String  @unique
-  hashedPassword     String
-  hashedRefreshToken String?
+  id     Int  @id @default(autoincrement())
+  userId Int  @unique
 
   // Company info
   name     String
@@ -103,14 +135,6 @@ model Company {
   billingAddress String?
   billingCountry String?
 
-  // Email verification
-  emailVerified          Boolean @default(false)
-  emailVerificationToken String?
-
-  // Password reset
-  passwordResetToken     String?
-  passwordResetExpiresAt DateTime?
-
   // Settings
   emailNotifications Boolean @default(true)
 
@@ -121,13 +145,14 @@ model Company {
   updatedAt DateTime @updatedAt
 
   // Relations
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   invitations        Invitation[]
   creditTransactions CreditTransaction[]
   pipelineEntries    PipelineEntry[]
   unlockedReports    UnlockedReport[]
   tags               Tag[]
 
-  @@index([email])
+  @@index([userId])
 }
 
 // ============================================
@@ -135,10 +160,8 @@ model Company {
 // ============================================
 
 model Developer {
-  id                 Int     @id @default(autoincrement())
-  email              String  @unique
-  hashedPassword     String
-  hashedRefreshToken String?
+  id     Int  @id @default(autoincrement())
+  userId Int  @unique
 
   // Basic profile info
   firstName String?
@@ -151,18 +174,11 @@ model Developer {
   // Visibility to companies (default true, developer can opt-out anytime)
   isVisible Boolean @default(true)
 
-  // Email verification
-  emailVerified          Boolean @default(false)
-  emailVerificationToken String?
-
-  // Password reset
-  passwordResetToken     String?
-  passwordResetExpiresAt DateTime?
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
+  user                User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
   invitation          Invitation? // Optional - dev may have registered without invitation
   projects            TechnicalProject[]
   hiringReport        HiringReport?
@@ -171,7 +187,7 @@ model Developer {
   githubInstallations GithubAppInstallation[]
   technicalProfile    TechnicalProfile? // One-to-one: technical specialization and experiences
 
-  @@index([email])
+  @@index([userId])
   @@index([assessmentStatus])
 }
 
