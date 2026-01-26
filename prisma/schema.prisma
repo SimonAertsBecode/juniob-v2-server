@@ -148,8 +148,8 @@ model Developer {
   // Assessment status
   assessmentStatus AssessmentStatus @default(REGISTERING)
 
-  // Visibility to companies (can only be true when fully assessed)
-  isVisible Boolean @default(false)
+  // Visibility to companies (default true, developer can opt-out anytime)
+  isVisible Boolean @default(true)
 
   // Email verification
   emailVerified          Boolean @default(false)
@@ -178,8 +178,8 @@ model Developer {
 // Technical profile: developer type and tech experiences
 // Separated from basic profile for cleaner data organization
 model TechnicalProfile {
-  id          Int           @id @default(autoincrement())
-  developerId Int           @unique
+  id            Int           @id @default(autoincrement())
+  developerId   Int           @unique
   developerType DeveloperType // FRONTEND, BACKEND, FULLSTACK, MOBILE
 
   createdAt DateTime @default(now())
@@ -198,7 +198,7 @@ model TechExperience {
   id                 Int    @id @default(autoincrement())
   technicalProfileId Int
   stackName          String // e.g., "React.js", "Node.js", "TypeScript"
-  months             Int    // Experience in months (e.g., 4 = 4 months, 24 = 2 years)
+  months             Int // Experience in months (e.g., 4 = 4 months, 24 = 2 years)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -215,10 +215,10 @@ model TechExperience {
 // ============================================
 
 model GithubAppInstallation {
-  id                   String   @id @default(uuid())
+  id                   String    @id @default(uuid())
   developerId          Int
-  installationId       String   // GitHub App installation ID
-  accessTokenEncrypted String?  // AES-256-CBC encrypted token
+  installationId       String // GitHub App installation ID
+  accessTokenEncrypted String? // AES-256-CBC encrypted token
   tokenExpiresAt       DateTime?
 
   createdAt DateTime @default(now())
@@ -235,9 +235,9 @@ model GithubAppInstallation {
 model GithubAppRepository {
   id             String  @id @default(uuid())
   installationId String
-  githubRepoId   BigInt  // GitHub's repository ID
-  repoName       String  // e.g., "my-project"
-  repoFullName   String  // e.g., "username/my-project"
+  githubRepoId   BigInt // GitHub's repository ID
+  repoName       String // e.g., "my-project"
+  repoFullName   String // e.g., "username/my-project"
   description    String?
   isPrivate      Boolean
 

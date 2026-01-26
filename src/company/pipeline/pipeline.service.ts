@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -183,9 +184,17 @@ export class PipelineService {
       }
     }
 
+    // Always filter by visible developers only
+    // Merge with any existing developer filters (e.g., search)
+    where.developer = {
+      ...where.developer,
+      isVisible: true,
+    };
+
     // Search by developer email if provided
     if (query.search) {
       where.developer = {
+        ...where.developer,
         email: {
           contains: query.search,
           mode: 'insensitive',
@@ -328,10 +337,22 @@ export class PipelineService {
       where: {
         companyId_developerId: { companyId, developerId },
       },
+      include: {
+        developer: {
+          select: { isVisible: true },
+        },
+      },
     });
 
     if (!entry) {
       throw new NotFoundException('Developer not found in pipeline');
+    }
+
+    // Check visibility - developer must be visible to companies
+    if (!entry.developer.isVisible) {
+      throw new ForbiddenException(
+        'Developer profile is not visible to companies',
+      );
     }
 
     const updated = await this.prisma.pipelineEntry.update({
@@ -419,6 +440,11 @@ export class PipelineService {
     });
 
     if (!entry) {
+      return null;
+    }
+
+    // Check visibility - developer must be visible to companies
+    if (!entry.developer.isVisible) {
       return null;
     }
 

@@ -198,6 +198,19 @@ export class InvitationService {
       };
     }
 
+    // Check visibility - if developer is not visible and company hasn't unlocked them,
+    // treat as if they don't exist (privacy protection)
+    if (!developer.isVisible && !unlocked) {
+      return {
+        exists: false,
+        status: DeveloperStatusType.NOT_REGISTERED,
+        statusDescription: 'Not registered on Juniob',
+        email: normalizedEmail,
+        isUnlocked: false,
+        isTracked: !!invitation,
+      };
+    }
+
     // Map assessment status to developer status type
     const statusType = this.mapAssessmentStatusToType(
       developer.assessmentStatus,

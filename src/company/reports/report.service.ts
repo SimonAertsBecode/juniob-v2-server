@@ -79,6 +79,13 @@ export class ReportService {
       throw new NotFoundException('Developer not found');
     }
 
+    // Check visibility - developer must have opted in to be visible to companies
+    if (!developer.isVisible) {
+      throw new ForbiddenException(
+        'Developer profile is not visible to companies',
+      );
+    }
+
     if (developer.assessmentStatus !== AssessmentStatus.ASSESSED) {
       throw new BadRequestException(
         'Developer assessment is not complete. Current status: ' +
@@ -136,6 +143,13 @@ export class ReportService {
 
     if (!developer) {
       throw new NotFoundException('Developer not found');
+    }
+
+    // Check visibility - developer must have opted in to be visible to companies
+    if (!developer.isVisible) {
+      throw new ForbiddenException(
+        'Developer profile is not visible to companies',
+      );
     }
 
     if (developer.assessmentStatus !== AssessmentStatus.ASSESSED) {
@@ -246,6 +260,14 @@ export class ReportService {
 
     if (!developer) {
       throw new NotFoundException('Developer not found');
+    }
+
+    // Check visibility - developer must have opted in to be visible to companies
+    // Even if already unlocked, respect the developer's visibility preference
+    if (!developer.isVisible) {
+      throw new ForbiddenException(
+        'Developer profile is no longer visible to companies',
+      );
     }
 
     if (!developer.hiringReport) {

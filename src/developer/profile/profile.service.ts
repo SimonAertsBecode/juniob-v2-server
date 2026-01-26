@@ -515,7 +515,8 @@ export class ProfileService {
   }
 
   /**
-   * Get visibility status with toggle eligibility
+   * Get visibility status
+   * Developers can always toggle visibility - no restrictions
    */
   async getVisibility(developerId: number): Promise<{
     isVisible: boolean;
@@ -524,35 +525,22 @@ export class ProfileService {
   }> {
     const developer = await this.prisma.developer.findUnique({
       where: { id: developerId },
-      include: {
-        technicalProfile: {
-          include: {
-            techExperiences: true,
-          },
-        },
-        projects: {
-          include: {
-            analysis: true,
-          },
-        },
-      },
+      select: { isVisible: true },
     });
 
     if (!developer) {
       throw new NotFoundException('Developer not found');
     }
 
-    const { canToggle, reason } = this.checkVisibilityEligibility(developer);
-
     return {
       isVisible: developer.isVisible,
-      canToggle,
-      reason,
+      canToggle: true,
     };
   }
 
   /**
    * Toggle developer visibility to companies
+   * Developers can always toggle - it's their choice to opt-in or opt-out
    */
   async updateVisibility(
     developerId: number,
@@ -564,30 +552,11 @@ export class ProfileService {
   }> {
     const developer = await this.prisma.developer.findUnique({
       where: { id: developerId },
-      include: {
-        technicalProfile: {
-          include: {
-            techExperiences: true,
-          },
-        },
-        projects: {
-          include: {
-            analysis: true,
-          },
-        },
-      },
+      select: { id: true },
     });
 
     if (!developer) {
       throw new NotFoundException('Developer not found');
-    }
-
-    const { canToggle, reason } = this.checkVisibilityEligibility(developer);
-
-    if (!canToggle) {
-      throw new BadRequestException(
-        reason || 'Cannot toggle visibility at this time',
-      );
     }
 
     await this.prisma.developer.update({
@@ -599,65 +568,5 @@ export class ProfileService {
       isVisible,
       canToggle: true,
     };
-  }
-
-  /**
-   * Check if developer meets all requirements to toggle visibility
-   */
-  private checkVisibilityEligibility(developer: {
-    firstName: string | null;
-    lastName: string | null;
-    technicalProfile: {
-      developerType: string;
-      techExperiences: { stackName: string; months: number }[];
-    } | null;
-    projects: {
-      analysis: { status: string } | null;
-    }[];
-  }): { canToggle: boolean; reason?: string } {
-    // Check basic profile
-    if (!developer.firstName || !developer.lastName) {
-      return {
-        canToggle: false,
-        reason: 'Complete your basic profile (first name and last name)',
-      };
-    }
-
-    // Check technical profile
-    if (!developer.technicalProfile) {
-      return {
-        canToggle: false,
-        reason: 'Set your developer type and technologies',
-      };
-    }
-
-    if (developer.technicalProfile.techExperiences.length < 3) {
-      return {
-        canToggle: false,
-        reason: 'Add at least 3 technologies to your profile',
-      };
-    }
-
-    // Check projects
-    if (developer.projects.length === 0) {
-      return {
-        canToggle: false,
-        reason: 'Submit at least one project for analysis',
-      };
-    }
-
-    // Check if at least one project is fully analyzed
-    const hasAnalyzedProject = developer.projects.some(
-      (p) => p.analysis?.status === 'COMPLETE',
-    );
-
-    if (!hasAnalyzedProject) {
-      return {
-        canToggle: false,
-        reason: 'Wait for at least one project to be analyzed',
-      };
-    }
-
-    return { canToggle: true };
   }
 }
