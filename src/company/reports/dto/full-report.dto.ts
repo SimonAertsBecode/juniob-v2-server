@@ -88,50 +88,132 @@ export class DeveloperProfileDto {
 }
 
 /**
- * Tier 2: Hiring report (company only)
+ * Technical skill breakdown section
  */
-export class HiringReportDto {
-  @ApiProperty({ description: 'Overall technical score (0-100)' })
-  overallScore: number;
+export class TechnicalSkillSectionDto {
+  @ApiProperty({ description: 'Summary of this skill area (1-2 sentences)' })
+  summary: string;
 
   @ApiProperty({
-    description: 'Junior level assessment',
-    example: 'MID_JUNIOR',
+    description: 'Key strengths observed',
+    example: ['Clean separation of concerns'],
+  })
+  strengths: string[];
+
+  @ApiProperty({
+    description: 'Improvement areas',
+    example: ['Could add more error handling'],
+  })
+  improvements: string[];
+}
+
+/**
+ * Full technical breakdown
+ */
+export class TechnicalBreakdownDto {
+  @ApiProperty({ description: 'Code structure & readability assessment' })
+  codeStructure: TechnicalSkillSectionDto;
+
+  @ApiProperty({ description: 'Core fundamentals assessment' })
+  coreFundamentals: TechnicalSkillSectionDto;
+
+  @ApiProperty({ description: 'Problem-solving approach assessment' })
+  problemSolving: TechnicalSkillSectionDto;
+
+  @ApiProperty({ description: 'Tooling & best practices assessment' })
+  toolingPractices: TechnicalSkillSectionDto;
+}
+
+/**
+ * Tier 2: Hiring report (company only) - follows TECHNICAL_REPORT_SPECS.md
+ */
+export class HiringReportDto {
+  // 1. PRIMARY DECISION SIGNAL - Hiring Recommendation (Top Section)
+  @ApiProperty({
+    description: 'Hiring recommendation - PRIMARY decision signal',
+    enum: ['SAFE_TO_INTERVIEW', 'INTERVIEW_WITH_CAUTION', 'NOT_READY'],
+  })
+  recommendation: string;
+
+  @ApiProperty({
+    description: '3-5 bullet points explaining the recommendation',
+    example: [
+      'Solid understanding of core concepts',
+      'Clean and readable code structure',
+    ],
+  })
+  recommendationReasons: string[];
+
+  // 2. Junior Level Benchmark
+  @ApiProperty({
+    description: 'Junior level benchmark',
+    enum: ['ABOVE_EXPECTED', 'WITHIN_EXPECTED', 'BELOW_EXPECTED'],
   })
   juniorLevel: string;
 
   @ApiProperty({
-    description: 'Patterns of strength across all projects',
-    example: ['Strong frontend skills', 'Good code organization'],
+    description: 'Context for junior level (e.g., Junior Frontend)',
+    example: 'Junior Frontend',
+    nullable: true,
   })
-  aggregateStrengths: string[];
+  juniorLevelContext: string | null;
+
+  // 3. Technical Skill Breakdown
+  @ApiProperty({
+    description: 'Technical skill breakdown (4 sections)',
+    type: TechnicalBreakdownDto,
+    nullable: true,
+  })
+  technicalBreakdown: TechnicalBreakdownDto | null;
+
+  // 4. Risk Flags / Points of Attention
+  @ApiProperty({
+    description: 'Potential risks that could cause surprises after hiring',
+    example: ['Heavy reliance on tutorials', 'Limited debugging strategy'],
+  })
+  riskFlags: string[];
+
+  // 5. Authenticity & Confidence Signal
+  @ApiProperty({
+    description: 'Confidence in candidate understanding their own work',
+    enum: ['HIGH', 'MEDIUM', 'LOW'],
+    nullable: true,
+  })
+  authenticitySignal: string | null;
 
   @ApiProperty({
-    description: 'Recurring gaps or issues',
-    example: ['Limited backend experience', 'Testing gaps'],
+    description: 'Explanation of authenticity signals observed',
+    nullable: true,
   })
-  aggregateWeaknesses: string[];
+  authenticityExplanation: string | null;
 
+  // 6. Interview Guidance
   @ApiProperty({
-    description: 'Recommended interview questions (5-10)',
+    description: 'Recommended interview questions (3-5)',
     example: [
-      'Explain your approach to state management in React',
-      'How do you handle API errors?',
+      'Ask about state management approach',
+      'Probe debugging strategy',
     ],
   })
   interviewQuestions: string[];
 
+  // 7. Technical Confidence Score (SECONDARY)
   @ApiProperty({
-    description: 'Technical skills to develop during onboarding',
-    example: ['Database design', 'Unit testing'],
+    description:
+      'Overall technical score (0-100) - SECONDARY to recommendation',
   })
-  onboardingAreas: string[];
+  overallScore: number;
 
   @ApiProperty({
-    description: 'What support this developer needs',
-    example: ['Code review guidance', 'Mentorship on backend'],
+    description: 'Score band for quick reference',
+    enum: ['STRONG_JUNIOR', 'AVERAGE_JUNIOR', 'RISKY_JUNIOR'],
+    nullable: true,
   })
-  mentoringNeeds: string[];
+  scoreBand: string | null;
+
+  // Summary & Additional
+  @ApiProperty({ description: 'Summary conclusion (2-3 sentences)' })
+  conclusion: string;
 
   @ApiProperty({
     description: 'Technical proficiency breakdown',
@@ -141,25 +223,16 @@ export class HiringReportDto {
   techProficiency: Record<string, number> | null;
 
   @ApiProperty({
-    description: 'Critical issues if any (empty if none)',
-    example: [],
+    description: 'What support this developer needs',
+    example: ['Code review guidance', 'Mentorship on backend'],
   })
-  redFlags: string[];
+  mentoringNeeds: string[];
 
   @ApiProperty({
     description: 'Assessment of learning trajectory',
     nullable: true,
   })
   growthPotential: string | null;
-
-  @ApiProperty({
-    description: 'Hiring recommendation',
-    enum: ['STRONG_HIRE', 'HIRE', 'CONSIDER', 'NOT_READY'],
-  })
-  recommendation: string;
-
-  @ApiProperty({ description: 'Summary conclusion (2-3 sentences)' })
-  conclusion: string;
 
   @ApiProperty({ description: 'Report generation date' })
   generatedAt: Date;

@@ -13,6 +13,7 @@ import {
   DeveloperProfileDto,
   ProjectAnalysisDto,
   HiringReportDto,
+  TechnicalBreakdownDto,
   UnlockReportResponseDto,
   BatchReportsDto,
   BatchReportItemDto,
@@ -287,23 +288,35 @@ export class ReportService {
         completedAt: p.analysis!.completedAt ?? p.analysis!.createdAt,
       }));
 
-    // Map hiring report
+    // Map hiring report - follows TECHNICAL_REPORT_SPECS.md order
     const hiringReport: HiringReportDto = {
-      overallScore: developer.hiringReport.overallScore,
+      // 1. PRIMARY DECISION SIGNAL
+      recommendation: developer.hiringReport.recommendation,
+      recommendationReasons: developer.hiringReport.recommendationReasons,
+      // 2. Junior Level Benchmark
       juniorLevel: developer.hiringReport.juniorLevel,
-      aggregateStrengths: developer.hiringReport.aggregateStrengths,
-      aggregateWeaknesses: developer.hiringReport.aggregateWeaknesses,
+      juniorLevelContext: developer.hiringReport.juniorLevelContext,
+      // 3. Technical Skill Breakdown
+      technicalBreakdown: developer.hiringReport
+        .technicalBreakdown as unknown as TechnicalBreakdownDto | null,
+      // 4. Risk Flags
+      riskFlags: developer.hiringReport.riskFlags,
+      // 5. Authenticity Signal
+      authenticitySignal: developer.hiringReport.authenticitySignal,
+      authenticityExplanation: developer.hiringReport.authenticityExplanation,
+      // 6. Interview Guidance
       interviewQuestions: developer.hiringReport.interviewQuestions,
-      onboardingAreas: developer.hiringReport.onboardingAreas,
-      mentoringNeeds: developer.hiringReport.mentoringNeeds,
+      // 7. Technical Confidence Score (SECONDARY)
+      overallScore: developer.hiringReport.overallScore,
+      scoreBand: developer.hiringReport.scoreBand,
+      // Summary & Additional
+      conclusion: developer.hiringReport.conclusion,
       techProficiency: developer.hiringReport.techProficiency as Record<
         string,
         number
       > | null,
-      redFlags: developer.hiringReport.redFlags,
+      mentoringNeeds: developer.hiringReport.mentoringNeeds,
       growthPotential: developer.hiringReport.growthPotential,
-      recommendation: developer.hiringReport.recommendation,
-      conclusion: developer.hiringReport.conclusion,
       generatedAt: developer.hiringReport.generatedAt,
     };
 

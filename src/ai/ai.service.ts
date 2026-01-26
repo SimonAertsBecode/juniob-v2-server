@@ -4,7 +4,34 @@ import Anthropic from '@anthropic-ai/sdk';
 import { generateProjectAnalysisPrompt } from './prompts/project-analysis.prompt';
 import { generateHiringReportPrompt } from './prompts/hiring-report.prompt';
 
-// Tier 1: Project Analysis Result (Developer can see)
+// Technical skill rating from project analysis
+export interface TechnicalSkillRating {
+  rating: 'STRONG' | 'ADEQUATE' | 'WEAK';
+  observations: string[];
+}
+
+// Technical assessment structure
+export interface TechnicalAssessment {
+  codeStructure: TechnicalSkillRating;
+  coreFundamentals: TechnicalSkillRating;
+  problemSolving: TechnicalSkillRating;
+  toolingPractices: TechnicalSkillRating;
+}
+
+// Authenticity signals from project analysis
+export interface AuthenticitySignals {
+  level: 'HIGH' | 'MEDIUM' | 'LOW';
+  positiveIndicators: string[];
+  concerningIndicators: string[];
+}
+
+// Error handling assessment
+export interface ErrorHandlingAssessment {
+  quality: 'GOOD' | 'PARTIAL' | 'POOR' | 'NONE';
+  observations: string;
+}
+
+// Tier 1: Project Analysis Result (Developer can see basic info, companies see more)
 export interface ProjectAnalysisResult {
   score: number;
   potentialMismatch: boolean;
@@ -15,6 +42,12 @@ export interface ProjectAnalysisResult {
   weaknessesSummary: string;
   codeOrganization: string;
   techStack: string[];
+  // New structured data for better hiring report generation
+  technicalAssessment?: TechnicalAssessment;
+  authenticitySignals?: AuthenticitySignals;
+  securityIssues?: string[];
+  riskFlags?: string[];
+  errorHandling?: ErrorHandlingAssessment;
 }
 
 // Tier 2: Hiring Report Result (Company only)
@@ -100,6 +133,27 @@ export class AiService {
   }
 
   /**
+   * Validate and normalize technical assessment structure
+   */
+  private normalizeSkillRating(
+    rating: any,
+  ): TechnicalSkillRating | undefined {
+    if (!rating || typeof rating !== 'object') return undefined;
+
+    const validRatings = ['STRONG', 'ADEQUATE', 'WEAK'];
+    const normalizedRating = validRatings.includes(rating.rating)
+      ? rating.rating
+      : 'ADEQUATE';
+
+    return {
+      rating: normalizedRating as 'STRONG' | 'ADEQUATE' | 'WEAK',
+      observations: Array.isArray(rating.observations)
+        ? rating.observations.slice(0, 5)
+        : [],
+    };
+  }
+
+  /**
    * Tier 1: Analyze a single technical project
    * Developer can see this analysis
    */
@@ -168,6 +222,57 @@ export class AiService {
           `Successfully analyzed project: ${metadata?.name}, score: ${parsed.score}`,
         );
 
+        // Build technical assessment if available
+        let technicalAssessment: TechnicalAssessment | undefined;
+        if (parsed.technicalAssessment) {
+          const ta = parsed.technicalAssessment;
+          technicalAssessment = {
+            codeStructure: this.normalizeSkillRating(ta.codeStructure) || {
+              rating: 'ADEQUATE',
+              observations: [],
+            },
+            coreFundamentals: this.normalizeSkillRating(ta.coreFundamentals) || {
+              rating: 'ADEQUATE',
+              observations: [],
+            },
+            problemSolving: this.normalizeSkillRating(ta.problemSolving) || {
+              rating: 'ADEQUATE',
+              observations: [],
+            },
+            toolingPractices: this.normalizeSkillRating(ta.toolingPractices) || {
+              rating: 'ADEQUATE',
+              observations: [],
+            },
+          };
+        }
+
+        // Build authenticity signals if available
+        let authenticitySignals: AuthenticitySignals | undefined;
+        if (parsed.authenticitySignals) {
+          const as = parsed.authenticitySignals;
+          const validLevels = ['HIGH', 'MEDIUM', 'LOW'];
+          authenticitySignals = {
+            level: validLevels.includes(as.level) ? as.level : 'MEDIUM',
+            positiveIndicators: Array.isArray(as.positiveIndicators)
+              ? as.positiveIndicators.slice(0, 5)
+              : [],
+            concerningIndicators: Array.isArray(as.concerningIndicators)
+              ? as.concerningIndicators.slice(0, 5)
+              : [],
+          };
+        }
+
+        // Build error handling assessment if available
+        let errorHandling: ErrorHandlingAssessment | undefined;
+        if (parsed.errorHandling) {
+          const eh = parsed.errorHandling;
+          const validQualities = ['GOOD', 'PARTIAL', 'POOR', 'NONE'];
+          errorHandling = {
+            quality: validQualities.includes(eh.quality) ? eh.quality : 'PARTIAL',
+            observations: eh.observations || '',
+          };
+        }
+
         return {
           score: Math.min(100, Math.max(0, parsed.score)),
           potentialMismatch: parsed.potentialMismatch ?? false,
@@ -178,6 +283,16 @@ export class AiService {
           weaknessesSummary: parsed.weaknessesSummary || '',
           codeOrganization: parsed.codeOrganization || '',
           techStack: parsed.techStack || [],
+          // New structured data
+          technicalAssessment,
+          authenticitySignals,
+          securityIssues: Array.isArray(parsed.securityIssues)
+            ? parsed.securityIssues.slice(0, 10)
+            : [],
+          riskFlags: Array.isArray(parsed.riskFlags)
+            ? parsed.riskFlags.slice(0, 10)
+            : [],
+          errorHandling,
         };
       } catch (error: any) {
         const isRateLimit =
@@ -232,6 +347,12 @@ export class AiService {
       strengthsSummary: string;
       weaknessesSummary: string;
       techStack: string[];
+      // New structured data from enhanced project analysis
+      technicalAssessment?: TechnicalAssessment;
+      authenticitySignals?: AuthenticitySignals;
+      securityIssues?: string[];
+      riskFlags?: string[];
+      errorHandling?: ErrorHandlingAssessment;
     }>,
     developerProfile: {
       firstName?: string;

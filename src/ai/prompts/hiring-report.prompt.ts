@@ -4,7 +4,33 @@
  *
  * This prompt generates a recruiter-oriented technical report that helps
  * decide whether a junior developer should move forward in the hiring process.
+ *
+ * It consumes the structured output from project-analysis.prompt.ts to generate
+ * accurate, data-driven hiring recommendations.
  */
+
+interface TechnicalSkillRating {
+  rating: 'STRONG' | 'ADEQUATE' | 'WEAK';
+  observations: string[];
+}
+
+interface TechnicalAssessment {
+  codeStructure: TechnicalSkillRating;
+  coreFundamentals: TechnicalSkillRating;
+  problemSolving: TechnicalSkillRating;
+  toolingPractices: TechnicalSkillRating;
+}
+
+interface AuthenticitySignals {
+  level: 'HIGH' | 'MEDIUM' | 'LOW';
+  positiveIndicators: string[];
+  concerningIndicators: string[];
+}
+
+interface ErrorHandlingAssessment {
+  quality: 'GOOD' | 'PARTIAL' | 'POOR' | 'NONE';
+  observations: string;
+}
 
 interface ProjectAnalysisData {
   name: string;
@@ -16,6 +42,12 @@ interface ProjectAnalysisData {
   strengthsSummary: string;
   weaknessesSummary: string;
   techStack: string[];
+  // New structured data from enhanced project analysis
+  technicalAssessment?: TechnicalAssessment;
+  authenticitySignals?: AuthenticitySignals;
+  securityIssues?: string[];
+  riskFlags?: string[];
+  errorHandling?: ErrorHandlingAssessment;
 }
 
 interface TechExperience {
@@ -34,9 +66,68 @@ export const generateHiringReportPrompt = (
   projects: ProjectAnalysisData[],
   developerProfile: DeveloperProfile,
 ): string => {
+  // Build project sections with all available data
   const projectsSection = projects
-    .map(
-      (project, index) => `
+    .map((project, index) => {
+      // Build technical assessment section if available
+      const technicalSection = project.technicalAssessment
+        ? `
+  <technical_assessment>
+    <code_structure rating="${project.technicalAssessment.codeStructure.rating}">
+${project.technicalAssessment.codeStructure.observations.map((o) => `      <observation>${o}</observation>`).join('\n')}
+    </code_structure>
+    <core_fundamentals rating="${project.technicalAssessment.coreFundamentals.rating}">
+${project.technicalAssessment.coreFundamentals.observations.map((o) => `      <observation>${o}</observation>`).join('\n')}
+    </core_fundamentals>
+    <problem_solving rating="${project.technicalAssessment.problemSolving.rating}">
+${project.technicalAssessment.problemSolving.observations.map((o) => `      <observation>${o}</observation>`).join('\n')}
+    </problem_solving>
+    <tooling_practices rating="${project.technicalAssessment.toolingPractices.rating}">
+${project.technicalAssessment.toolingPractices.observations.map((o) => `      <observation>${o}</observation>`).join('\n')}
+    </tooling_practices>
+  </technical_assessment>`
+        : '';
+
+      // Build authenticity section if available
+      const authenticitySection = project.authenticitySignals
+        ? `
+  <authenticity_signals level="${project.authenticitySignals.level}">
+    <positive_indicators>
+${project.authenticitySignals.positiveIndicators.map((i) => `      <item>${i}</item>`).join('\n')}
+    </positive_indicators>
+    <concerning_indicators>
+${project.authenticitySignals.concerningIndicators.map((i) => `      <item>${i}</item>`).join('\n')}
+    </concerning_indicators>
+  </authenticity_signals>`
+        : '';
+
+      // Build security issues section if available
+      const securitySection =
+        project.securityIssues && project.securityIssues.length > 0
+          ? `
+  <security_issues>
+${project.securityIssues.map((s) => `    <issue>${s}</issue>`).join('\n')}
+  </security_issues>`
+          : '';
+
+      // Build risk flags section if available
+      const riskSection =
+        project.riskFlags && project.riskFlags.length > 0
+          ? `
+  <risk_flags>
+${project.riskFlags.map((r) => `    <flag>${r}</flag>`).join('\n')}
+  </risk_flags>`
+          : '';
+
+      // Build error handling section if available
+      const errorSection = project.errorHandling
+        ? `
+  <error_handling quality="${project.errorHandling.quality}">
+    <observations>${project.errorHandling.observations}</observations>
+  </error_handling>`
+        : '';
+
+      return `
 <project index="${index + 1}">
   <name>${project.name}</name>
   <description>${project.description}</description>
@@ -51,13 +142,81 @@ ${project.weaknesses.map((w) => `    <item>${w}</item>`).join('\n')}
   </weaknesses>
   <strengths_summary>${project.strengthsSummary}</strengths_summary>
   <weaknesses_summary>${project.weaknessesSummary}</weaknesses_summary>
-</project>`,
-    )
+${technicalSection}
+${authenticitySection}
+${securitySection}
+${riskSection}
+${errorSection}
+</project>`;
+    })
     .join('\n');
 
   const avgScore = Math.round(
     projects.reduce((sum, p) => sum + p.score, 0) / projects.length,
   );
+
+  // Aggregate technical assessments across projects
+  const aggregateTechnicalRatings = () => {
+    const areas = [
+      'codeStructure',
+      'coreFundamentals',
+      'problemSolving',
+      'toolingPractices',
+    ] as const;
+    const ratings: Record<
+      string,
+      { strong: number; adequate: number; weak: number }
+    > = {};
+
+    areas.forEach((area) => {
+      ratings[area] = { strong: 0, adequate: 0, weak: 0 };
+      projects.forEach((p) => {
+        if (p.technicalAssessment?.[area]) {
+          const rating = p.technicalAssessment[area].rating.toLowerCase() as
+            | 'strong'
+            | 'adequate'
+            | 'weak';
+          ratings[area][rating]++;
+        }
+      });
+    });
+
+    return areas
+      .map((area) => {
+        const r = ratings[area];
+        const total = r.strong + r.adequate + r.weak;
+        if (total === 0) return null;
+        return `    <${area}>STRONG: ${r.strong}, ADEQUATE: ${r.adequate}, WEAK: ${r.weak}</${area}>`;
+      })
+      .filter(Boolean)
+      .join('\n');
+  };
+
+  // Aggregate authenticity signals
+  const aggregateAuthenticity = () => {
+    const levels = { high: 0, medium: 0, low: 0 };
+    projects.forEach((p) => {
+      if (p.authenticitySignals?.level) {
+        const level = p.authenticitySignals.level.toLowerCase() as
+          | 'high'
+          | 'medium'
+          | 'low';
+        levels[level]++;
+      }
+    });
+    const total = levels.high + levels.medium + levels.low;
+    if (total === 0) return 'Not assessed';
+    return `HIGH: ${levels.high}, MEDIUM: ${levels.medium}, LOW: ${levels.low}`;
+  };
+
+  // Collect all security issues and risk flags
+  const allSecurityIssues = projects
+    .flatMap((p) => p.securityIssues || [])
+    .filter((v, i, a) => a.indexOf(v) === i); // dedupe
+
+  const allRiskFlags = projects
+    .flatMap((p) => p.riskFlags || [])
+    .filter((v, i, a) => a.indexOf(v) === i); // dedupe
 
   // Format tech experiences for the prompt
   const techExperiencesSection =
@@ -109,6 +268,34 @@ The tech experience above is SELF-REPORTED by the developer (in months). Use thi
 3. If claimed experience seems inconsistent with code quality, note this in the authenticity section
 </important_context>
 
+<aggregated_analysis>
+These are aggregated signals from the individual project analyses to help you form an overall assessment:
+
+<technical_skill_distribution>
+${aggregateTechnicalRatings() || '    No technical assessments available'}
+</technical_skill_distribution>
+
+<authenticity_distribution>
+${aggregateAuthenticity()}
+</authenticity_distribution>
+
+${
+  allSecurityIssues.length > 0
+    ? `<all_security_issues>
+${allSecurityIssues.map((s) => `    <issue>${s}</issue>`).join('\n')}
+</all_security_issues>`
+    : '<all_security_issues>None identified</all_security_issues>'
+}
+
+${
+  allRiskFlags.length > 0
+    ? `<all_risk_flags>
+${allRiskFlags.map((r) => `    <flag>${r}</flag>`).join('\n')}
+</all_risk_flags>`
+    : '<all_risk_flags>None identified</all_risk_flags>'
+}
+</aggregated_analysis>
+
 <analyzed_projects count="${projects.length}">
 ${projectsSection}
 </analyzed_projects>
@@ -134,13 +321,14 @@ Compare against expected junior level:
 - "WITHIN_EXPECTED" - Meets expectations for a junior
 - "BELOW_EXPECTED" - Below typical junior level
 
-Include context: Junior Frontend / Junior Backend / Junior Full-Stack
+Include context based on their specialization: Junior Frontend / Junior Backend / Junior Full-Stack
 
 ## 3. TECHNICAL SKILL BREAKDOWN
+Use the technical assessment data from individual projects to synthesize an overall view.
 For each relevant area, provide:
 - Short qualitative summary (1-2 sentences)
-- Key strengths observed
-- Improvement areas
+- Key strengths observed (be specific, reference projects)
+- Improvement areas (be specific, actionable)
 
 Areas to assess:
 - Code structure & readability
@@ -148,9 +336,10 @@ Areas to assess:
 - Problem-solving approach
 - Tooling & best practices
 
-Avoid numeric obsession - focus on qualitative assessment.
+Avoid numeric obsession - focus on qualitative assessment that helps hiring decisions.
 
 ## 4. RISK FLAGS / POINTS OF ATTENTION (Critical)
+Synthesize the risk flags and security issues from project analyses.
 List potential risks that could cause surprises after hiring:
 - Heavy reliance on tutorials without understanding
 - Limited debugging strategy
@@ -162,29 +351,56 @@ List potential risks that could cause surprises after hiring:
 Tone: Factual, not judgmental. These help prepare interviewers.
 
 ## 5. AUTHENTICITY & CONFIDENCE SIGNAL
+Synthesize the authenticity signals from project analyses.
 Estimate confidence in candidate's understanding of their own work:
 - "HIGH" - Code shows clear understanding, consistent patterns
 - "MEDIUM" - Mixed signals, some areas seem learned vs understood
 - "LOW" - Evidence of heavy copy-paste without comprehension
 
-Brief explanation of what signals you observed.
+Brief explanation of what signals you observed across projects.
 
 ## 6. INTERVIEW GUIDANCE
 Provide 3-5 specific interview questions or discussion points based on:
-- Weak areas identified
-- Risk flags
-- Unclear concepts
+- Weak areas identified in technical breakdown
+- Risk flags identified
+- Unclear concepts or inconsistencies
+- Areas where authenticity is uncertain
 
 Focus on validation, not trick questions.
 Example: "Ask them to explain their state management approach in [project] and why they chose Redux over Context API."
 
 ## 7. TECHNICAL CONFIDENCE SCORE
 Internal score for comparison purposes:
-- Score: 0-100
+- Score: 0-100 (use the average project score as a starting point, adjust based on overall patterns)
 - Band: STRONG_JUNIOR (75-100) / AVERAGE_JUNIOR (50-74) / RISKY_JUNIOR (0-49)
 
 This score supports the qualitative evaluation - it is NOT the primary decision signal.
 </report_structure>
+
+<decision_guidelines>
+Use these guidelines to make your recommendation:
+
+SAFE_TO_INTERVIEW when:
+- Technical skills are adequate or strong across most areas
+- No critical security issues or red flags
+- Authenticity signals are HIGH or MEDIUM
+- Any weaknesses are clearly coachable
+- Average score >= 60 AND no critical concerns
+
+INTERVIEW_WITH_CAUTION when:
+- Mixed technical signals (some strong, some weak)
+- Minor security concerns or risk flags
+- Authenticity signals are MEDIUM with some concerns
+- Weaknesses are present but not disqualifying
+- Average score 45-70 with notable concerns to probe
+
+NOT_READY when:
+- Multiple weak technical areas
+- Critical security issues or major red flags
+- Authenticity signals are LOW
+- Fundamental gaps that require significant training
+- Average score < 45 OR critical disqualifying issues
+</decision_guidelines>
 
 <language_guidelines>
 - Business-oriented, recruiter-friendly
@@ -208,7 +424,7 @@ Your response must be exactly this JSON structure (nothing else):
 
   "technicalBreakdown": {
     "codeStructure": {
-      "summary": "<1-2 sentences>",
+      "summary": "<1-2 sentences synthesizing across projects>",
       "strengths": ["<strength 1>", ...],
       "improvements": ["<improvement 1>", ...]
     },

@@ -63,16 +63,15 @@ enum CreditTransactionType {
 }
 
 enum HireRecommendation {
-  STRONG_HIRE
-  HIRE
-  CONSIDER
-  NOT_READY
+  SAFE_TO_INTERVIEW // Solid fundamentals, safe to proceed
+  INTERVIEW_WITH_CAUTION // Has potential but notable concerns to probe
+  NOT_READY // Too many fundamental gaps for professional environment
 }
 
 enum JuniorLevel {
-  EARLY_JUNIOR // 0-6 months experience
-  MID_JUNIOR // 6-12 months experience
-  SENIOR_JUNIOR // 1-2 years experience
+  ABOVE_EXPECTED // Exceeds typical junior level (top 10-15%)
+  WITHIN_EXPECTED // Meets expectations for a junior
+  BELOW_EXPECTED // Below typical junior level
 }
 
 enum DeveloperType {
@@ -360,32 +359,39 @@ model HiringReport {
   id          Int @id @default(autoincrement())
   developerId Int @unique
 
-  // Overall assessment
-  overallScore Int // 0-100 (aggregate from all projects)
-  juniorLevel  JuniorLevel // Early, Mid, or Senior Junior
+  // PRIMARY DECISION SIGNAL - Hiring Recommendation
+  recommendation        HireRecommendation // SAFE_TO_INTERVIEW, INTERVIEW_WITH_CAUTION, NOT_READY
+  recommendationReasons String[] // 3-5 bullet points explaining why
 
-  // Aggregate insights
-  aggregateStrengths  String[] // Patterns across all projects
-  aggregateWeaknesses String[] // Recurring gaps
+  // Junior Level Benchmark
+  juniorLevel        JuniorLevel // ABOVE_EXPECTED, WITHIN_EXPECTED, BELOW_EXPECTED
+  juniorLevelContext String? // e.g., "Junior Frontend", "Junior Backend", "Junior Full-Stack"
 
-  // Interview preparation
-  interviewQuestions String[] // 5-10 recommended questions
+  // Technical Skill Breakdown (4 sections)
+  // { codeStructure: {summary, strengths, improvements}, coreFundamentals: {...}, problemSolving: {...}, toolingPractices: {...} }
+  technicalBreakdown Json?
 
-  // Onboarding guidance
-  onboardingAreas String[] // Technical skills to develop
+  // Risk Flags / Points of Attention
+  riskFlags String[] // Potential risks that could cause surprises after hiring
+
+  // Authenticity & Confidence Signal
+  authenticitySignal      String? // HIGH, MEDIUM, LOW
+  authenticityExplanation String? // Brief explanation of signals observed
+
+  // Interview Guidance
+  interviewQuestions String[] // 3-5 specific questions based on weak areas, risk flags
+
+  // Technical Confidence Score (SECONDARY - supports qualitative evaluation)
+  overallScore Int // 0-100 (internal comparison score)
+  scoreBand    String? // STRONG_JUNIOR, AVERAGE_JUNIOR, RISKY_JUNIOR
+
+  // Summary Conclusion
+  conclusion String // 2-3 sentence summary answering: Should we interview this person and why?
+
+  // Additional guidance (optional)
+  techProficiency Json? // e.g., {"React": 7, "Node.js": 5, "TypeScript": 6}
   mentoringNeeds  String[] // What support this dev needs
-
-  // Technical proficiency (JSON object with tech:score pairs)
-  // e.g., {"React": 7, "Node.js": 5, "TypeScript": 6}
-  techProficiency Json?
-
-  // Risk assessment
-  redFlags        String[] // Critical issues if any
   growthPotential String? // Assessment of learning trajectory
-
-  // Final recommendation
-  recommendation HireRecommendation
-  conclusion     String // 2-3 sentence summary
 
   // Raw analysis (for debugging)
   rawAnalysis Json?

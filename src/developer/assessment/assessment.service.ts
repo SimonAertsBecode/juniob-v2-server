@@ -700,20 +700,31 @@ export class AssessmentService {
       return;
     }
 
-    // Prepare project data
+    // Prepare project data with structured analysis data
     const projectsData = developer.projects
       .filter((p) => p.analysis?.status === ProjectAnalysisStatus.COMPLETE)
-      .map((p) => ({
-        name: p.name,
-        description: p.description || '',
-        projectType: p.projectType,
-        score: p.analysis!.score || 0,
-        strengths: p.analysis!.strengths,
-        weaknesses: p.analysis!.areasForImprovement,
-        strengthsSummary: '',
-        weaknessesSummary: '',
-        techStack: p.techStack,
-      }));
+      .map((p) => {
+        // Extract structured data from rawAnalysis if available
+        const raw = p.analysis!.rawAnalysis as Record<string, any> | null;
+
+        return {
+          name: p.name,
+          description: p.description || '',
+          projectType: p.projectType,
+          score: p.analysis!.score || 0,
+          strengths: p.analysis!.strengths,
+          weaknesses: p.analysis!.areasForImprovement,
+          strengthsSummary: raw?.strengthsSummary || '',
+          weaknessesSummary: raw?.weaknessesSummary || '',
+          techStack: p.techStack,
+          // New structured data from enhanced project analysis
+          technicalAssessment: raw?.technicalAssessment,
+          authenticitySignals: raw?.authenticitySignals,
+          securityIssues: raw?.securityIssues || [],
+          riskFlags: raw?.riskFlags || [],
+          errorHandling: raw?.errorHandling,
+        };
+      });
 
     if (projectsData.length === 0) {
       return;
@@ -736,52 +747,56 @@ export class AssessmentService {
           })) || [],
       });
 
-    // Map recommendation to HireRecommendation enum
-    const recommendationMap: Record<string, HireRecommendation> = {
-      SAFE_TO_INTERVIEW: HireRecommendation.STRONG_HIRE,
-      INTERVIEW_WITH_CAUTION: HireRecommendation.CONSIDER,
-      NOT_READY: HireRecommendation.NOT_READY,
-    };
-
-    const juniorLevelMap: Record<string, JuniorLevel> = {
-      ABOVE_EXPECTED: JuniorLevel.SENIOR_JUNIOR,
-      WITHIN_EXPECTED: JuniorLevel.MID_JUNIOR,
-      BELOW_EXPECTED: JuniorLevel.EARLY_JUNIOR,
-    };
-
+    // Store all AI-generated fields directly (no mapping - enums now match specs)
     const rawReportJson = JSON.parse(JSON.stringify(report));
 
     await this.prisma.hiringReport.upsert({
       where: { developerId },
       create: {
         developerId,
-        overallScore: report.overallScore,
-        juniorLevel: juniorLevelMap[report.juniorLevel],
-        aggregateStrengths: report.recommendationReasons,
-        aggregateWeaknesses: report.riskFlags,
+        // Primary decision signal
+        recommendation: report.recommendation as HireRecommendation,
+        recommendationReasons: report.recommendationReasons,
+        // Junior level benchmark
+        juniorLevel: report.juniorLevel as JuniorLevel,
+        juniorLevelContext: report.juniorLevelContext,
+        // Technical skill breakdown
+        technicalBreakdown: report.technicalBreakdown,
+        // Risk flags
+        riskFlags: report.riskFlags,
+        // Authenticity signal
+        authenticitySignal: report.authenticitySignal,
+        authenticityExplanation: report.authenticityExplanation,
+        // Interview guidance
         interviewQuestions: report.interviewQuestions,
-        onboardingAreas: report.mentoringNeeds,
-        mentoringNeeds: report.mentoringNeeds,
-        techProficiency: report.techProficiency,
-        redFlags: report.riskFlags,
-        growthPotential: report.growthPotential,
-        recommendation: recommendationMap[report.recommendation],
+        // Technical confidence score (secondary)
+        overallScore: report.overallScore,
+        scoreBand: report.scoreBand,
+        // Conclusion
         conclusion: report.conclusion,
+        // Additional guidance
+        techProficiency: report.techProficiency,
+        mentoringNeeds: report.mentoringNeeds,
+        growthPotential: report.growthPotential,
+        // Raw for debugging
         rawAnalysis: rawReportJson,
       },
       update: {
-        overallScore: report.overallScore,
-        juniorLevel: juniorLevelMap[report.juniorLevel],
-        aggregateStrengths: report.recommendationReasons,
-        aggregateWeaknesses: report.riskFlags,
+        recommendation: report.recommendation as HireRecommendation,
+        recommendationReasons: report.recommendationReasons,
+        juniorLevel: report.juniorLevel as JuniorLevel,
+        juniorLevelContext: report.juniorLevelContext,
+        technicalBreakdown: report.technicalBreakdown,
+        riskFlags: report.riskFlags,
+        authenticitySignal: report.authenticitySignal,
+        authenticityExplanation: report.authenticityExplanation,
         interviewQuestions: report.interviewQuestions,
-        onboardingAreas: report.mentoringNeeds,
-        mentoringNeeds: report.mentoringNeeds,
-        techProficiency: report.techProficiency,
-        redFlags: report.riskFlags,
-        growthPotential: report.growthPotential,
-        recommendation: recommendationMap[report.recommendation],
+        overallScore: report.overallScore,
+        scoreBand: report.scoreBand,
         conclusion: report.conclusion,
+        techProficiency: report.techProficiency,
+        mentoringNeeds: report.mentoringNeeds,
+        growthPotential: report.growthPotential,
         rawAnalysis: rawReportJson,
       },
     });

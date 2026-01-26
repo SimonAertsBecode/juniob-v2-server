@@ -1,3 +1,13 @@
+/**
+ * Project Analysis Prompt - Tier 1 Analysis
+ *
+ * This prompt analyzes individual developer projects and produces structured
+ * data that feeds into the Tier 2 Hiring Report generation.
+ *
+ * The output structure is designed to provide all necessary information for
+ * accurate hiring report generation.
+ */
+
 interface ProjectMetadata {
   name: string;
   description: string;
@@ -247,6 +257,81 @@ Set false if:
 - Actual code matches declared type
 - Minor discrepancies that don't affect core type
 </step_5>
+
+<step_6>
+<title>Assess Technical Skill Areas</title>
+For each area, provide specific observations that will feed into the hiring report:
+
+<skill_area name="Code Structure & Readability">
+Assess: File organization, naming conventions, code clarity, separation of concerns, module structure.
+Look for: Clean imports, logical folder structure, readable function names, appropriate comments.
+Red flags: God files, unclear naming, no organization, inconsistent style.
+</skill_area>
+
+<skill_area name="Core Fundamentals">
+Assess: Language mastery, framework understanding, data structure usage, algorithm implementation.
+Look for: Proper use of language features, understanding of framework patterns, appropriate data handling.
+Red flags: Misuse of language features, fighting the framework, inefficient algorithms.
+</skill_area>
+
+<skill_area name="Problem Solving">
+Assess: Edge case handling, error scenarios, complex logic implementation, debugging evidence.
+Look for: Validation logic, boundary conditions, thoughtful error messages, creative solutions.
+Red flags: No validation, ignoring edge cases, brittle code, no error handling.
+</skill_area>
+
+<skill_area name="Tooling & Best Practices">
+Assess: Build tools, linting, environment config, git practices (if visible), dependency management.
+Look for: Package.json scripts, eslint/prettier config, proper .env usage, meaningful commits.
+Red flags: No build config, hardcoded values, missing dependencies, chaotic setup.
+</skill_area>
+</step_6>
+
+<step_7>
+<title>Identify Authenticity Signals</title>
+Determine if this is genuine learning or copy-paste work:
+
+<authenticity_positive>
+- Consistent coding style across files
+- Thoughtful error messages (not generic)
+- Custom solutions to unique problems
+- Evidence of iteration/refactoring
+- Comments that show understanding
+- Unique project concept or implementation
+</authenticity_positive>
+
+<authenticity_negative>
+- Code style varies wildly between files
+- Generic tutorial-like structure
+- Copy-paste errors (wrong variable names, unused imports)
+- No customization of boilerplate
+- Inconsistent patterns within same file
+- Comments that don't match code
+</authenticity_negative>
+</step_7>
+
+<step_8>
+<title>Identify Security & Risk Issues</title>
+Document any security concerns or risk flags:
+
+<security_issues>
+- Hardcoded credentials, API keys, secrets
+- SQL injection vulnerabilities
+- XSS vulnerabilities (unescaped user input)
+- Missing input validation
+- Insecure authentication patterns
+- Exposed sensitive data in logs/errors
+</security_issues>
+
+<risk_flags>
+- Heavy reliance on tutorials without understanding
+- Incomplete error handling
+- Missing critical validations
+- Abandoned features
+- Inconsistent architecture decisions
+- Technical debt accumulation
+</risk_flags>
+</step_8>
 </evaluation_instructions>
 
 <strengths_requirements>
@@ -285,6 +370,8 @@ First, think through your evaluation step by step in <analysis> tags:
 5. FINAL SCORE CALCULATION: [Base] + [Execution] + [Experience] + [Testing] = [FINAL]
 6. Type mismatch check: [Yes/No]
 7. Key hiring signals: [What does this project reveal about the developer?]
+8. Authenticity assessment: [Genuine/Mixed/Concerning]
+9. Security/Risk issues found: [List any]
 </analysis>
 
 Then output ONLY valid JSON (no markdown, no code blocks):
@@ -293,22 +380,60 @@ Then output ONLY valid JSON (no markdown, no code blocks):
   "score": <number 0-100 - calculated from your analysis>,
   "potentialMismatch": <boolean>,
   "mismatchReason": <string or null>,
+
   "strengths": [<array of 3-5 specific strings>],
   "weaknesses": [<array of 3-5 specific strings>],
   "strengthsSummary": "<2-3 sentences>",
   "weaknessesSummary": "<2-3 sentences>",
+
   "codeOrganization": "<1-2 sentences about code structure>",
-  "techStack": [<array of detected technologies>]
+  "techStack": [<array of detected technologies>],
+
+  "technicalAssessment": {
+    "codeStructure": {
+      "rating": "<STRONG | ADEQUATE | WEAK>",
+      "observations": ["<specific observation 1>", "<specific observation 2>"]
+    },
+    "coreFundamentals": {
+      "rating": "<STRONG | ADEQUATE | WEAK>",
+      "observations": ["<specific observation 1>", "<specific observation 2>"]
+    },
+    "problemSolving": {
+      "rating": "<STRONG | ADEQUATE | WEAK>",
+      "observations": ["<specific observation 1>", "<specific observation 2>"]
+    },
+    "toolingPractices": {
+      "rating": "<STRONG | ADEQUATE | WEAK>",
+      "observations": ["<specific observation 1>", "<specific observation 2>"]
+    }
+  },
+
+  "authenticitySignals": {
+    "level": "<HIGH | MEDIUM | LOW>",
+    "positiveIndicators": ["<indicator 1>", ...],
+    "concerningIndicators": ["<indicator 1>", ...]
+  },
+
+  "securityIssues": [<array of specific security concerns, empty if none>],
+  "riskFlags": [<array of potential risks for hiring, empty if none>],
+
+  "errorHandling": {
+    "quality": "<GOOD | PARTIAL | POOR | NONE>",
+    "observations": "<brief description>"
+  }
 }
 </output_format>
 
 <final_checklist>
 Before submitting, verify:
-1. ✓ Did I use the scoring formula? (Base + Execution + Experience + Testing)
-2. ✓ Is my score DIFFERENTIATED from a typical 70-75? (use full range!)
-3. ✓ Is every strength/weakness SPECIFIC? (actual files, functions, not generic)
-4. ✓ Did I show my score calculation in the analysis?
-5. ✓ NO mention of "lack of tests" in weaknesses?
-6. ✓ Is my output clean JSON after the analysis tags?
+1. Did I use the scoring formula? (Base + Execution + Experience + Testing)
+2. Is my score DIFFERENTIATED from a typical 70-75? (use full range!)
+3. Is every strength/weakness SPECIFIC? (actual files, functions, not generic)
+4. Did I show my score calculation in the analysis?
+5. NO mention of "lack of tests" in weaknesses?
+6. Did I assess all 4 technical skill areas?
+7. Did I evaluate authenticity signals?
+8. Did I document security issues and risk flags?
+9. Is my output clean JSON after the analysis tags?
 </final_checklist>`.trim();
 };
