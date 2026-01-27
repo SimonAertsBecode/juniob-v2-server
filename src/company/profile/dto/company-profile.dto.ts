@@ -40,6 +40,11 @@ export class CompanyProfileDto {
   @ApiProperty({ description: 'Current credit balance' })
   creditBalance: number;
 
+  @ApiProperty({
+    description: 'Whether billing info is locked (after first payment)',
+  })
+  billingLocked: boolean;
+
   @ApiProperty({ description: 'Account created at' })
   createdAt: Date;
 }

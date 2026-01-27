@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -19,6 +20,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { CreditService } from './credit.service';
+import { StripeService } from './stripe.service';
 import {
   CreditBalanceDto,
   CreditHistoryDto,
@@ -26,11 +28,15 @@ import {
   CheckoutSessionDto,
 } from './dto';
 import { GetCurrentUserTableId, Public } from '../../common/decorators';
+import { PurchaseValidation } from './credit.service';
 
 @ApiTags('Company Credits')
 @Controller('company/credits')
 export class CreditController {
-  constructor(private creditService: CreditService) {}
+  constructor(
+    private creditService: CreditService,
+    private stripeService: StripeService,
+  ) {}
 
   @Get('balance')
   @ApiBearerAuth('access-token')
@@ -68,6 +74,34 @@ export class CreditController {
     );
   }
 
+  @Get('validate-purchase')
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary: 'Validate company has required billing info for purchase',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Validation result with any errors',
+  })
+  async validatePurchase(
+    @GetCurrentUserTableId() companyId: number,
+  ): Promise<PurchaseValidation> {
+    return this.creditService.validateCompanyForPurchase(companyId);
+  }
+
+  @Public()
+  @Get('billing-countries')
+  @ApiOperation({
+    summary: 'Get list of supported billing countries',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of billing countries with ISO codes',
+  })
+  getBillingCountries() {
+    return this.creditService.getBillingCountries();
+  }
+
   @Post('purchase')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth('access-token')
@@ -92,14 +126,20 @@ export class CreditController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Stripe webhook endpoint' })
   @ApiResponse({ status: 200, description: 'Webhook received' })
+  @ApiResponse({ status: 400, description: 'Invalid webhook signature' })
   async handleWebhook(
     @Req() req: RawBodyRequest<Request>,
     @Headers('stripe-signature') signature: string,
   ): Promise<{ received: boolean }> {
     const payload = req.rawBody;
     if (!payload) {
-      throw new Error('Missing raw body');
+      console.error('Webhook received without raw body');
+      throw new BadRequestException('Missing request body');
     }
-    return this.creditService.handleStripeWebhook(payload, signature);
+    if (!signature) {
+      console.error('Webhook received without signature header');
+      throw new BadRequestException('Missing stripe-signature header');
+    }
+    return this.stripeService.handleWebhook(payload, signature);
   }
 }

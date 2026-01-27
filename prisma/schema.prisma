@@ -131,9 +131,10 @@ model Company {
   website  String?
 
   // Billing info
-  vatNumber      String?
-  billingAddress String?
-  billingCountry String?
+  vatNumber        String?
+  billingAddress   String?
+  billingCountry   String?
+  stripeCustomerId String?
 
   // Settings
   emailNotifications Boolean @default(true)

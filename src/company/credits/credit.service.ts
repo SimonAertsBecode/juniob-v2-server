@@ -3,29 +3,75 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import Stripe from 'stripe';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   CreditBalanceDto,
   CreditHistoryDto,
   CreditTransactionDto,
   CheckoutSessionDto,
-  PRICE_PER_CREDIT,
 } from './dto';
 import { CreditTransactionType } from '../../../prisma/generated/prisma';
+import { StripeService, BILLING_COUNTRIES } from './stripe.service';
+
+export interface PurchaseValidation {
+  isValid: boolean;
+  errors: string[];
+}
 
 @Injectable()
 export class CreditService {
-  private stripe: Stripe;
-
   constructor(
     private prisma: PrismaService,
-    private config: ConfigService,
-  ) {
-    this.stripe = new Stripe(
-      this.config.getOrThrow<string>('STRIPE_SECRET_KEY'),
-    );
+    private stripeService: StripeService,
+  ) {}
+
+  /**
+   * Validate that company has required billing info for purchase
+   */
+  async validateCompanyForPurchase(
+    companyId: number,
+  ): Promise<PurchaseValidation> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        vatNumber: true,
+        billingAddress: true,
+        billingCountry: true,
+      },
+    });
+
+    if (!company) {
+      throw new NotFoundException('Company not found');
+    }
+
+    const errors: string[] = [];
+
+    if (!company.vatNumber?.trim()) {
+      errors.push('VAT number is required for purchases');
+    } else {
+      // Validate VAT number format and checksum
+      const vatValidation = this.stripeService.validateVatNumber(
+        company.vatNumber,
+      );
+      if (!vatValidation.isValid) {
+        errors.push(vatValidation.error || 'Invalid VAT number');
+      }
+    }
+
+    if (!company.billingAddress?.trim()) {
+      errors.push('Billing address is required for purchases');
+    }
+
+    if (!company.billingCountry?.trim()) {
+      errors.push('Billing country is required for purchases');
+    } else if (!this.stripeService.isValidCountryCode(company.billingCountry)) {
+      errors.push('Invalid billing country. Please select a valid country.');
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+    };
   }
 
   async getBalance(companyId: number): Promise<CreditBalanceDto> {
@@ -77,6 +123,12 @@ export class CreditService {
     companyId: number,
     credits: number,
   ): Promise<CheckoutSessionDto> {
+    // Validate company has required billing info
+    const validation = await this.validateCompanyForPurchase(companyId);
+    if (!validation.isValid) {
+      throw new BadRequestException(validation.errors.join('. '));
+    }
+
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
       select: { user: { select: { email: true } }, name: true },
@@ -86,117 +138,28 @@ export class CreditService {
       throw new NotFoundException('Company not found');
     }
 
-    // Flat rate pricing: 27 EUR per credit (in cents)
-    const priceInCents = credits * PRICE_PER_CREDIT * 100;
-    const frontendUrl =
-      this.config.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+    // Get or create Stripe customer
+    const customerId = await this.stripeService.getOrCreateStripeCustomer(
+      companyId,
+      company.user.email,
+      company.name,
+    );
 
-    const session = await this.stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      mode: 'payment',
-      customer_email: company.user.email,
-      client_reference_id: companyId.toString(),
-      metadata: {
-        companyId: companyId.toString(),
-        credits: credits.toString(),
-        type: 'credit_purchase',
-      },
-      line_items: [
-        {
-          price_data: {
-            currency: 'eur',
-            product_data: {
-              name: `${credits} Juniob Credit${credits > 1 ? 's' : ''}`,
-              description: `Unlock ${credits} developer report${credits > 1 ? 's' : ''}`,
-            },
-            unit_amount: priceInCents,
-          },
-          quantity: 1,
-        },
-      ],
-      success_url: `${frontendUrl}/company/credits?success=true&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${frontendUrl}/company/credits?canceled=true`,
+    // Calculate price with volume discounts
+    const pricePerCredit = this.stripeService.getPricePerCredit(credits);
+
+    // Create checkout session via Stripe service
+    const result = await this.stripeService.createCheckoutSession({
+      customerId,
+      companyId,
+      credits,
+      pricePerCredit,
     });
 
     return {
-      url: session.url!,
-      sessionId: session.id,
+      url: result.url,
+      sessionId: result.sessionId,
     };
-  }
-
-  async handleStripeWebhook(
-    payload: Buffer,
-    signature: string,
-  ): Promise<{ received: boolean }> {
-    const webhookSecret = this.config.getOrThrow<string>(
-      'STRIPE_WEBHOOK_SECRET',
-    );
-
-    let event: Stripe.Event;
-
-    try {
-      event = this.stripe.webhooks.constructEvent(
-        payload,
-        signature,
-        webhookSecret,
-      );
-    } catch (_err) {
-      throw new BadRequestException(`Webhook signature verification failed`);
-    }
-
-    if (event.type === 'checkout.session.completed') {
-      const session = event.data.object;
-      await this.handleSuccessfulPayment(session);
-    }
-
-    return { received: true };
-  }
-
-  private async handleSuccessfulPayment(
-    session: Stripe.Checkout.Session,
-  ): Promise<void> {
-    const companyId = parseInt(session.metadata?.companyId || '0', 10);
-    const credits = parseInt(session.metadata?.credits || '0', 10);
-
-    if (!companyId || !credits) {
-      console.error('Invalid metadata in Stripe session:', session.metadata);
-      return;
-    }
-
-    // Use a transaction to ensure atomicity
-    await this.prisma.$transaction(async (tx) => {
-      // Get current balance
-      const company = await tx.company.findUnique({
-        where: { id: companyId },
-        select: { creditBalance: true },
-      });
-
-      if (!company) {
-        console.error('Company not found for credit purchase:', companyId);
-        return;
-      }
-
-      const newBalance = company.creditBalance + credits;
-
-      // Update balance
-      await tx.company.update({
-        where: { id: companyId },
-        data: { creditBalance: newBalance },
-      });
-
-      // Record transaction
-      await tx.creditTransaction.create({
-        data: {
-          companyId,
-          type: CreditTransactionType.PURCHASE,
-          amount: credits,
-          balanceAfter: newBalance,
-          description: `Purchased ${credits} credit${credits > 1 ? 's' : ''}`,
-          stripeSessionId: session.id,
-          stripePaymentIntentId: session.payment_intent as string,
-        },
-      });
-    });
   }
 
   async deductCredit(
@@ -204,7 +167,6 @@ export class CreditService {
     developerId: number,
   ): Promise<{ success: boolean; newBalance: number }> {
     return await this.prisma.$transaction(async (tx) => {
-      // Get current balance
       const company = await tx.company.findUnique({
         where: { id: companyId },
         select: { creditBalance: true },
@@ -220,13 +182,11 @@ export class CreditService {
 
       const newBalance = company.creditBalance - 1;
 
-      // Update balance
       await tx.company.update({
         where: { id: companyId },
         data: { creditBalance: newBalance },
       });
 
-      // Record transaction
       await tx.creditTransaction.create({
         data: {
           companyId,
@@ -249,5 +209,12 @@ export class CreditService {
     });
 
     return (company?.creditBalance ?? 0) >= amount;
+  }
+
+  /**
+   * Get list of supported billing countries
+   */
+  getBillingCountries() {
+    return BILLING_COUNTRIES;
   }
 }
