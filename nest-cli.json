@@ -4,6 +4,12 @@
   "sourceRoot": "src",
   "compilerOptions": {
     "deleteOutDir": true,
+    "assets": [
+      {
+        "include": "company/reports/assets/**/*",
+        "outDir": "dist"
+      }
+    ],
     "plugins": [
       {
         "name": "@nestjs/swagger",

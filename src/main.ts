@@ -53,6 +53,7 @@ async function bootstrap() {
   app.enableCors({
     origin: configService.getOrThrow('FRONTEND_URL') || 'http://localhost:5173',
     credentials: true,
+    exposedHeaders: ['Content-Disposition'],
   });
 
   // Generate OpenAPI documentation in development

@@ -4,6 +4,7 @@ import {
   Post,
   Param,
   Query,
+  Res,
   ParseIntPipe,
   HttpCode,
   HttpStatus,
@@ -16,9 +17,12 @@ import {
   ApiBearerAuth,
   ApiParam,
   ApiQuery,
+  ApiProduces,
 } from '@nestjs/swagger';
+import { Response } from 'express';
 import { GetCurrentUserTableId } from '../../common/decorators';
 import { ReportService } from './report.service';
+import { ReportPdfService } from './report-pdf.service';
 import {
   ReportPreviewDto,
   FullReportDto,
@@ -30,7 +34,10 @@ import {
 @ApiBearerAuth()
 @Controller('company/reports')
 export class ReportController {
-  constructor(private reportService: ReportService) {}
+  constructor(
+    private reportService: ReportService,
+    private reportPdfService: ReportPdfService,
+  ) {}
 
   @Get('batch')
   @ApiOperation({
@@ -77,6 +84,53 @@ export class ReportController {
     }
 
     return this.reportService.getBatchReports(companyId, developerIds);
+  }
+
+  @Get(':developerId/pdf')
+  @ApiOperation({ summary: 'Download report as PDF (requires unlock)' })
+  @ApiParam({ name: 'developerId', description: 'Developer ID' })
+  @ApiProduces('application/pdf')
+  @ApiResponse({
+    status: 200,
+    description: 'PDF file download',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Report not unlocked',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Developer not found',
+  })
+  async downloadPdf(
+    @GetCurrentUserTableId() companyId: number,
+    @Param('developerId', ParseIntPipe) developerId: number,
+    @Res() res: Response,
+  ): Promise<void> {
+    // Get full report (this checks unlock status internally)
+    const fullReport = await this.reportService.getFullReport(
+      companyId,
+      developerId,
+    );
+
+    // Generate PDF
+    const pdfBuffer = await this.reportPdfService.generateReportPdf(fullReport);
+
+    // Get developer name for filename
+    const developerName =
+      fullReport.developer.firstName && fullReport.developer.lastName
+        ? `${fullReport.developer.firstName}_${fullReport.developer.lastName}`
+        : `developer_${developerId}`;
+
+    const filename = `juniob_report_${developerName}_${new Date().toISOString().split('T')[0]}.pdf`;
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': pdfBuffer.length,
+    });
+
+    res.send(pdfBuffer);
   }
 
   @Get(':developerId/preview')
