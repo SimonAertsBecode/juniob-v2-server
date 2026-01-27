@@ -231,7 +231,7 @@ export class EmailService {
     token: string,
     message?: string,
   ): Promise<void> {
-    const signupUrl = `${this.frontendUrl}/signup?invitation=${token}`;
+    const signupUrl = `${this.frontendUrl}/accept-invitation?invitation=${token}`;
 
     const messageSection = message
       ? `

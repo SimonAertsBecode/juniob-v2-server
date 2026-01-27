@@ -9,14 +9,11 @@ import {
   CreditHistoryDto,
   CreditTransactionDto,
   CheckoutSessionDto,
+  PurchaseValidationDto,
+  BillingCountryDto,
 } from './dto';
 import { CreditTransactionType } from '../../../prisma/generated/prisma';
 import { StripeService, BILLING_COUNTRIES } from './stripe.service';
-
-export interface PurchaseValidation {
-  isValid: boolean;
-  errors: string[];
-}
 
 @Injectable()
 export class CreditService {
@@ -30,7 +27,7 @@ export class CreditService {
    */
   async validateCompanyForPurchase(
     companyId: number,
-  ): Promise<PurchaseValidation> {
+  ): Promise<PurchaseValidationDto> {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
       select: {
@@ -214,7 +211,7 @@ export class CreditService {
   /**
    * Get list of supported billing countries
    */
-  getBillingCountries() {
-    return BILLING_COUNTRIES;
+  getBillingCountries(): BillingCountryDto[] {
+    return [...BILLING_COUNTRIES];
   }
 }

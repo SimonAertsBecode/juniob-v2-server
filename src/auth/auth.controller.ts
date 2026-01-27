@@ -22,6 +22,9 @@ import {
   AuthResponseDto,
   ForgotPasswordDto,
   ResetPasswordDto,
+  AcceptInvitationDto,
+  VerifyEmailDto,
+  VerifyEmailResponseDto,
 } from './dto';
 import { Public, GetCurrentUserId, GetCurrentUser } from '../common/decorators';
 import { RtGuard } from '../common/guards';
@@ -134,15 +137,47 @@ export class AuthController {
   }
 
   @Public()
+  @Post('accept-invitation')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Accept invitation, create account and sign in',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Account created and signed in',
+    type: AuthResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Invalid or expired invitation' })
+  @ApiResponse({ status: 409, description: 'Account already exists' })
+  async acceptInvitation(
+    @Body() dto: AcceptInvitationDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AuthResponseDto> {
+    const { refreshToken, accessToken, ...response } =
+      await this.authService.acceptInvitation(dto);
+
+    setAuthCookies(res, accessToken, refreshToken);
+
+    return response;
+  }
+
+  @Public()
   @Post('verify-email')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Verify email address with token' })
-  @ApiResponse({ status: 200, description: 'Email verified successfully' })
+  @ApiOperation({
+    summary:
+      'Verify email address with token (and set password for invited users)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Email verified successfully or password required',
+    type: VerifyEmailResponseDto,
+  })
   @ApiResponse({ status: 400, description: 'Invalid or expired token' })
   async verifyEmail(
-    @Body('token') token: string,
-  ): Promise<{ message: string }> {
-    return this.authService.verifyEmail(token);
+    @Body() dto: VerifyEmailDto,
+  ): Promise<VerifyEmailResponseDto> {
+    return this.authService.verifyEmail(dto);
   }
 
   @Post('resend-verification')

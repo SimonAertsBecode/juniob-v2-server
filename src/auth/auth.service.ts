@@ -21,6 +21,9 @@ import {
   AuthResult,
   ForgotPasswordDto,
   ResetPasswordDto,
+  AcceptInvitationDto,
+  VerifyEmailDto,
+  VerifyEmailResponseDto,
 } from './dto';
 import {
   InvitationStatus,
@@ -406,9 +409,149 @@ export class AuthService {
     return baseResponse;
   }
 
-  async verifyEmail(token: string): Promise<{ message: string }> {
+  /**
+   * Accept an invitation - creates account with password and logs in
+   * Email is verified because clicking the invitation link proves ownership
+   */
+  async acceptInvitation(dto: AcceptInvitationDto): Promise<AuthResult> {
+    // Find and validate invitation
+    const invitation = await this.prisma.invitation.findUnique({
+      where: { token: dto.token },
+    });
+
+    if (!invitation) {
+      throw new BadRequestException('Invalid invitation token');
+    }
+
+    if (invitation.status === InvitationStatus.EXPIRED) {
+      throw new BadRequestException('This invitation has expired');
+    }
+
+    if (invitation.status === InvitationStatus.ACCEPTED) {
+      throw new BadRequestException('This invitation has already been used');
+    }
+
+    if (invitation.expiresAt < new Date()) {
+      await this.prisma.invitation.update({
+        where: { id: invitation.id },
+        data: { status: InvitationStatus.EXPIRED },
+      });
+      throw new BadRequestException('This invitation has expired');
+    }
+
+    const email = invitation.candidateEmail.toLowerCase();
+
+    // Check if user already exists
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUser) {
+      throw new ConflictException(
+        'An account with this email already exists. Please sign in instead.',
+      );
+    }
+
+    // Hash the password
+    const hashedPassword = await argon2.hash(dto.password);
+
+    // Create user and developer in a transaction
+    const result = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email,
+          hashedPassword,
+          role: UserRole.DEVELOPER,
+          emailVerified: true, // Clicking invitation link proves email ownership
+        },
+      });
+
+      const developer = await tx.developer.create({
+        data: {
+          userId: user.id,
+          // Name will be set later in profile
+        },
+      });
+
+      // Mark this invitation as accepted
+      await tx.invitation.update({
+        where: { id: invitation.id },
+        data: {
+          status: InvitationStatus.ACCEPTED,
+          acceptedAt: new Date(),
+          developerId: developer.id,
+        },
+      });
+
+      // Create pipeline entry for this invitation
+      await tx.pipelineEntry.create({
+        data: {
+          companyId: invitation.companyId,
+          developerId: developer.id,
+          stage: 'REGISTERING',
+        },
+      });
+
+      // Link any other pending invitations for this email
+      const otherPendingInvitations = await tx.invitation.findMany({
+        where: {
+          candidateEmail: email,
+          status: InvitationStatus.PENDING,
+          id: { not: invitation.id },
+        },
+      });
+
+      for (const otherInv of otherPendingInvitations) {
+        await tx.invitation.update({
+          where: { id: otherInv.id },
+          data: {
+            status: InvitationStatus.ACCEPTED,
+            acceptedAt: new Date(),
+            developerId: developer.id,
+          },
+        });
+
+        await tx.pipelineEntry.create({
+          data: {
+            companyId: otherInv.companyId,
+            developerId: developer.id,
+            stage: 'REGISTERING',
+          },
+        });
+      }
+
+      return { user, developer };
+    });
+
+    // Generate tokens and log user in
+    const tokens = await this.generateTokens(
+      result.user.id,
+      email,
+      UserRole.DEVELOPER,
+    );
+
+    await this.updateRefreshTokenHash(result.user.id, tokens.refreshToken);
+
+    return {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      id: result.user.id,
+      email,
+      role: 'DEVELOPER',
+      emailVerified: true,
+      developerId: result.developer.id,
+      firstName: result.developer.firstName,
+      lastName: result.developer.lastName,
+      assessmentStatus: result.developer.assessmentStatus,
+    };
+  }
+
+  /**
+   * Verify email - optionally with password for invited users
+   */
+  async verifyEmail(dto: VerifyEmailDto): Promise<VerifyEmailResponseDto> {
     const user = await this.prisma.user.findFirst({
-      where: { emailVerificationToken: token },
+      where: { emailVerificationToken: dto.token },
     });
 
     if (!user) {
@@ -416,18 +559,41 @@ export class AuthService {
     }
 
     if (user.emailVerified) {
-      return { message: 'Email already verified' };
+      return { message: 'Email already verified', requiresPassword: false };
+    }
+
+    // Check if user needs to set a password (invited users have empty password)
+    const needsPassword = user.hashedPassword === '';
+
+    if (needsPassword && !dto.password) {
+      // Return info that password is required
+      return {
+        message: 'Password required to complete verification',
+        requiresPassword: true,
+      };
+    }
+
+    // Prepare update data
+    const updateData: {
+      emailVerified: boolean;
+      emailVerificationToken: null;
+      hashedPassword?: string;
+    } = {
+      emailVerified: true,
+      emailVerificationToken: null,
+    };
+
+    // If password provided, hash and store it
+    if (dto.password) {
+      updateData.hashedPassword = await argon2.hash(dto.password);
     }
 
     await this.prisma.user.update({
       where: { id: user.id },
-      data: {
-        emailVerified: true,
-        emailVerificationToken: null,
-      },
+      data: updateData,
     });
 
-    return { message: 'Email verified successfully' };
+    return { message: 'Email verified successfully', requiresPassword: false };
   }
 
   async resendVerificationEmail(userId: number): Promise<{ message: string }> {

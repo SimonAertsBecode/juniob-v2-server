@@ -26,9 +26,10 @@ import {
   CreditHistoryDto,
   PurchaseCreditsDto,
   CheckoutSessionDto,
+  PurchaseValidationDto,
+  BillingCountryDto,
 } from './dto';
 import { GetCurrentUserTableId, Public } from '../../common/decorators';
-import { PurchaseValidation } from './credit.service';
 
 @ApiTags('Company Credits')
 @Controller('company/credits')
@@ -82,10 +83,11 @@ export class CreditController {
   @ApiResponse({
     status: 200,
     description: 'Validation result with any errors',
+    type: PurchaseValidationDto,
   })
   async validatePurchase(
     @GetCurrentUserTableId() companyId: number,
-  ): Promise<PurchaseValidation> {
+  ): Promise<PurchaseValidationDto> {
     return this.creditService.validateCompanyForPurchase(companyId);
   }
 
@@ -97,8 +99,9 @@ export class CreditController {
   @ApiResponse({
     status: 200,
     description: 'List of billing countries with ISO codes',
+    type: [BillingCountryDto],
   })
-  getBillingCountries() {
+  getBillingCountries(): BillingCountryDto[] {
     return this.creditService.getBillingCountries();
   }
 

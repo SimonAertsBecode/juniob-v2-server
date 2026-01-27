@@ -62,9 +62,11 @@ export class InvitationService {
     // For non-registered developers, we always send an email since that's the only way to reach them
     const shouldSendEmail = dto.sendEmail || !developerUser;
 
-    const developer = await this.prisma.developer.findUnique({
-      where: { userId: developerUser.id },
-    });
+    const developer = developerUser?.id
+      ? await this.prisma.developer.findUnique({
+          where: { userId: developerUser.id },
+        })
+      : null;
 
     // Create invitation (expires in 7 days)
     const expiresAt = new Date();
