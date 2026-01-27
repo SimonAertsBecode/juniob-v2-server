@@ -16,6 +16,12 @@ export class PipelineDeveloperDto {
   @ApiPropertyOptional({ description: 'Last name' })
   lastName?: string;
 
+  @ApiPropertyOptional({
+    description: 'Developer type (FRONTEND, BACKEND, FULLSTACK, MOBILE)',
+    enum: ['FRONTEND', 'BACKEND', 'FULLSTACK', 'MOBILE'],
+  })
+  developerType?: string;
+
   @ApiProperty({ description: 'Assessment status' })
   assessmentStatus: string;
 

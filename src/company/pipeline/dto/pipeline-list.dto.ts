@@ -51,6 +51,15 @@ export class PipelineQueryDto {
   tagIds?: string;
 
   @ApiPropertyOptional({
+    description: 'Filter by developer type (comma-separated)',
+    example: 'FRONTEND,BACKEND',
+    enum: ['FRONTEND', 'BACKEND', 'FULLSTACK', 'MOBILE'],
+  })
+  @IsOptional()
+  @IsString()
+  developerTypes?: string;
+
+  @ApiPropertyOptional({
     description: 'Search by developer email',
     example: 'john@example.com',
   })

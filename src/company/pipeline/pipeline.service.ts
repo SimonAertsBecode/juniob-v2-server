@@ -42,6 +42,7 @@ type PipelineEntryWithDeveloper = {
     assessmentStatus: string;
     projects: { techStack: string[] }[];
     hiringReport: { overallScore: number } | null;
+    technicalProfile: { developerType: string } | null;
   } | null;
   tags: {
     tag: { id: number; name: string; color: string };
@@ -105,6 +106,7 @@ export class PipelineService {
           email: entry.candidateEmail || '',
           firstName: undefined,
           lastName: undefined,
+          developerType: undefined,
           assessmentStatus: 'NOT_REGISTERED',
           overallScore: undefined,
           techStack: [],
@@ -115,13 +117,13 @@ export class PipelineService {
           email: entry.developer!.email,
           firstName: entry.developer!.firstName || undefined,
           lastName: entry.developer!.lastName || undefined,
+          developerType:
+            entry.developer!.technicalProfile?.developerType || undefined,
           assessmentStatus: entry.developer!.assessmentStatus,
           overallScore:
             entry.developer!.hiringReport?.overallScore || undefined,
           techStack: [
-            ...new Set(
-              entry.developer!.projects.flatMap((p) => p.techStack),
-            ),
+            ...new Set(entry.developer!.projects.flatMap((p) => p.techStack)),
           ],
           projectCount: entry.developer!.projects.length,
         };
@@ -190,6 +192,25 @@ export class PipelineService {
       }
     }
 
+    // Filter by developer types if provided
+    // Note: this excludes pending invitations since they don't have a type
+    if (query.developerTypes) {
+      const typeArray = query.developerTypes
+        .split(',')
+        .map((t) => t.trim().toUpperCase())
+        .filter((t) =>
+          ['FRONTEND', 'BACKEND', 'FULLSTACK', 'MOBILE'].includes(t),
+        );
+      if (typeArray.length > 0) {
+        where.developer = {
+          ...where.developer,
+          technicalProfile: {
+            developerType: { in: typeArray },
+          },
+        };
+      }
+    }
+
     // Search by email (both registered developers and pending invitations)
     if (query.search) {
       where.OR = [
@@ -222,10 +243,7 @@ export class PipelineService {
             ...condition,
             AND: [
               {
-                OR: [
-                  { developerId: null },
-                  { developer: { isVisible: true } },
-                ],
+                OR: [{ developerId: null }, { developer: { isVisible: true } }],
               },
             ],
           })),
@@ -248,6 +266,9 @@ export class PipelineService {
               },
               hiringReport: {
                 select: { overallScore: true },
+              },
+              technicalProfile: {
+                select: { developerType: true },
               },
             },
           },
@@ -290,6 +311,7 @@ export class PipelineService {
             ? {
                 ...entry.developer,
                 email: entry.developer.user.email,
+                technicalProfile: entry.developer.technicalProfile,
               }
             : null,
         },
@@ -349,10 +371,7 @@ export class PipelineService {
     const existingEntry = await this.prisma.pipelineEntry.findFirst({
       where: {
         companyId,
-        OR: [
-          { candidateEmail: email },
-          { developer: { user: { email } } },
-        ],
+        OR: [{ candidateEmail: email }, { developer: { user: { email } } }],
       },
     });
 
@@ -396,6 +415,7 @@ export class PipelineService {
           developer: {
             include: {
               user: true,
+              technicalProfile: { select: { developerType: true } },
               projects: { select: { techStack: true } },
               hiringReport: { select: { overallScore: true } },
             },
@@ -434,6 +454,9 @@ export class PipelineService {
           developer: entry.developer
             ? {
                 ...entry.developer,
+                technicalProfile: {
+                  developerType: entry.developer.technicalProfile.developerType,
+                },
                 email: entry.developer.user.email,
               }
             : null,
@@ -477,9 +500,7 @@ export class PipelineService {
           entry.invitationToken || '',
           dto.message,
         )
-        .catch((err) =>
-          console.error('Failed to send invitation email:', err),
-        );
+        .catch((err) => console.error('Failed to send invitation email:', err));
     }
 
     return this.mapEntryToDto(
@@ -596,6 +617,7 @@ export class PipelineService {
         developer: {
           include: {
             user: true,
+            technicalProfile: { select: { developerType: true } },
             projects: { select: { techStack: true } },
             hiringReport: { select: { overallScore: true } },
           },
@@ -751,6 +773,7 @@ export class PipelineService {
               select: { overallScore: true },
             },
             user: true,
+            technicalProfile: { select: { developerType: true } },
           },
         },
         tags: {
@@ -818,6 +841,7 @@ export class PipelineService {
               select: { overallScore: true },
             },
             user: true,
+            technicalProfile: { select: { developerType: true } },
           },
         },
         tags: {
@@ -883,6 +907,7 @@ export class PipelineService {
               select: { overallScore: true },
             },
             user: true,
+            technicalProfile: { select: { developerType: true } },
           },
         },
         tags: {
@@ -1021,7 +1046,10 @@ export class PipelineService {
     });
 
     // Return updated entry
-    return this.getPipelineEntry(companyId, entryId) as Promise<PipelineEntryDto>;
+    return this.getPipelineEntry(
+      companyId,
+      entryId,
+    ) as Promise<PipelineEntryDto>;
   }
 
   /**
