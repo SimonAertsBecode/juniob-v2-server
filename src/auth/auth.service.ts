@@ -25,11 +25,7 @@ import {
   VerifyEmailDto,
   VerifyEmailResponseDto,
 } from './dto';
-import {
-  InvitationStatus,
-  CreditTransactionType,
-  UserRole,
-} from '../../prisma/generated/prisma';
+import { CreditTransactionType, UserRole } from '../../prisma/generated/prisma';
 
 @Injectable()
 export class AuthService {
@@ -81,36 +77,31 @@ export class AuthService {
     hashedPassword: string,
     emailVerificationToken: string,
   ): Promise<AuthResult> {
-    // Validate invitation token if provided
-    let invitation = null;
+    // Validate invitation token if provided (now from PipelineEntry)
+    let pipelineEntry = null;
     if (dto.invitationToken) {
-      invitation = await this.prisma.invitation.findUnique({
-        where: { token: dto.invitationToken },
+      pipelineEntry = await this.prisma.pipelineEntry.findUnique({
+        where: { invitationToken: dto.invitationToken },
       });
 
-      if (!invitation) {
+      if (!pipelineEntry) {
         throw new BadRequestException('Invalid invitation token');
       }
 
-      if (invitation.status === InvitationStatus.EXPIRED) {
-        throw new BadRequestException('This invitation has expired');
-      }
-
-      if (invitation.status === InvitationStatus.ACCEPTED) {
+      if (pipelineEntry.developerId !== null) {
         throw new BadRequestException('This invitation has already been used');
       }
 
-      if (invitation.candidateEmail.toLowerCase() !== email) {
+      if (pipelineEntry.candidateEmail?.toLowerCase() !== email) {
         throw new BadRequestException(
           'Email does not match the invitation email',
         );
       }
 
-      if (invitation.expiresAt < new Date()) {
-        await this.prisma.invitation.update({
-          where: { id: invitation.id },
-          data: { status: InvitationStatus.EXPIRED },
-        });
+      if (
+        pipelineEntry.tokenExpiresAt &&
+        pipelineEntry.tokenExpiresAt < new Date()
+      ) {
         throw new BadRequestException('This invitation has expired');
       }
     }
@@ -137,53 +128,32 @@ export class AuthService {
       return { user, developer };
     });
 
-    // Handle invitation acceptance
-    if (invitation) {
-      await this.prisma.invitation.update({
-        where: { id: invitation.id },
+    // Handle invitation acceptance (unified model)
+    if (pipelineEntry) {
+      // Update the pipeline entry with the developer ID
+      await this.prisma.pipelineEntry.update({
+        where: { id: pipelineEntry.id },
         data: {
-          status: InvitationStatus.ACCEPTED,
-          acceptedAt: new Date(),
-          developerId: result.developer.id,
-        },
-      });
-
-      await this.prisma.pipelineEntry.create({
-        data: {
-          companyId: invitation.companyId,
           developerId: result.developer.id,
           stage: 'REGISTERING',
+          invitationToken: null, // Clear the token
         },
       });
-    } else {
-      // Check for pending invitations and link them
-      const pendingInvitations = await this.prisma.invitation.findMany({
-        where: {
-          candidateEmail: email,
-          status: InvitationStatus.PENDING,
-          developerId: null,
-        },
-      });
-
-      for (const inv of pendingInvitations) {
-        await this.prisma.invitation.update({
-          where: { id: inv.id },
-          data: {
-            status: InvitationStatus.ACCEPTED,
-            acceptedAt: new Date(),
-            developerId: result.developer.id,
-          },
-        });
-
-        await this.prisma.pipelineEntry.create({
-          data: {
-            companyId: inv.companyId,
-            developerId: result.developer.id,
-            stage: 'REGISTERING',
-          },
-        });
-      }
     }
+
+    // Link any other pending pipeline entries for this email
+    await this.prisma.pipelineEntry.updateMany({
+      where: {
+        candidateEmail: email,
+        developerId: null,
+        id: pipelineEntry ? { not: pipelineEntry.id } : undefined,
+      },
+      data: {
+        developerId: result.developer.id,
+        stage: 'REGISTERING',
+        invitationToken: null,
+      },
+    });
 
     // Send verification email
     this.emailService
@@ -414,32 +384,27 @@ export class AuthService {
    * Email is verified because clicking the invitation link proves ownership
    */
   async acceptInvitation(dto: AcceptInvitationDto): Promise<AuthResult> {
-    // Find and validate invitation
-    const invitation = await this.prisma.invitation.findUnique({
-      where: { token: dto.token },
+    // Find and validate invitation (now from PipelineEntry)
+    const pipelineEntry = await this.prisma.pipelineEntry.findUnique({
+      where: { invitationToken: dto.token },
     });
 
-    if (!invitation) {
+    if (!pipelineEntry) {
       throw new BadRequestException('Invalid invitation token');
     }
 
-    if (invitation.status === InvitationStatus.EXPIRED) {
-      throw new BadRequestException('This invitation has expired');
-    }
-
-    if (invitation.status === InvitationStatus.ACCEPTED) {
+    if (pipelineEntry.developerId !== null) {
       throw new BadRequestException('This invitation has already been used');
     }
 
-    if (invitation.expiresAt < new Date()) {
-      await this.prisma.invitation.update({
-        where: { id: invitation.id },
-        data: { status: InvitationStatus.EXPIRED },
-      });
+    if (
+      pipelineEntry.tokenExpiresAt &&
+      pipelineEntry.tokenExpiresAt < new Date()
+    ) {
       throw new BadRequestException('This invitation has expired');
     }
 
-    const email = invitation.candidateEmail.toLowerCase();
+    const email = pipelineEntry.candidateEmail!.toLowerCase();
 
     // Check if user already exists
     const existingUser = await this.prisma.user.findUnique({
@@ -473,52 +438,29 @@ export class AuthService {
         },
       });
 
-      // Mark this invitation as accepted
-      await tx.invitation.update({
-        where: { id: invitation.id },
+      // Update this pipeline entry with the developer ID
+      await tx.pipelineEntry.update({
+        where: { id: pipelineEntry.id },
         data: {
-          status: InvitationStatus.ACCEPTED,
-          acceptedAt: new Date(),
-          developerId: developer.id,
-        },
-      });
-
-      // Create pipeline entry for this invitation
-      await tx.pipelineEntry.create({
-        data: {
-          companyId: invitation.companyId,
           developerId: developer.id,
           stage: 'REGISTERING',
+          invitationToken: null, // Clear the token
         },
       });
 
-      // Link any other pending invitations for this email
-      const otherPendingInvitations = await tx.invitation.findMany({
+      // Link any other pending pipeline entries for this email
+      await tx.pipelineEntry.updateMany({
         where: {
           candidateEmail: email,
-          status: InvitationStatus.PENDING,
-          id: { not: invitation.id },
+          developerId: null,
+          id: { not: pipelineEntry.id },
+        },
+        data: {
+          developerId: developer.id,
+          stage: 'REGISTERING',
+          invitationToken: null,
         },
       });
-
-      for (const otherInv of otherPendingInvitations) {
-        await tx.invitation.update({
-          where: { id: otherInv.id },
-          data: {
-            status: InvitationStatus.ACCEPTED,
-            acceptedAt: new Date(),
-            developerId: developer.id,
-          },
-        });
-
-        await tx.pipelineEntry.create({
-          data: {
-            companyId: otherInv.companyId,
-            developerId: developer.id,
-            stage: 'REGISTERING',
-          },
-        });
-      }
 
       return { user, developer };
     });

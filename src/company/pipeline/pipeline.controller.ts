@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Post,
   Patch,
   Delete,
   Param,
@@ -19,7 +20,7 @@ import {
   ApiParam,
   ApiQuery,
 } from '@nestjs/swagger';
-import { GetCurrentUserTableId } from '../../common/decorators';
+import { GetCurrentUserTableId, Public } from '../../common/decorators';
 import { PipelineService } from './pipeline.service';
 import {
   PipelineEntryDto,
@@ -28,6 +29,9 @@ import {
   PipelineQueryDto,
   UpdatePipelineStageDto,
   SetPipelineTagsDto,
+  CreateInvitationDto,
+  UpdateNotesDto,
+  InvitationInfoDto,
 } from './dto';
 
 @ApiTags('Company - Pipeline')
@@ -91,12 +95,76 @@ export class PipelineController {
     return this.pipelineService.getPipelineStats(companyId);
   }
 
-  @Get(':developerId')
+  @Post('invite')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Create invitation / track candidate',
+    description:
+      'Create a new pipeline entry for a candidate. If the candidate is already registered, adds them to pipeline. Otherwise creates a pending invitation.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Pipeline entry created',
+    type: PipelineEntryDto,
+  })
+  @ApiResponse({ status: 409, description: 'Candidate already in pipeline' })
+  async createInvitation(
+    @GetCurrentUserTableId() companyId: number,
+    @Body() dto: CreateInvitationDto,
+  ): Promise<PipelineEntryDto> {
+    return this.pipelineService.createInvitation(companyId, dto);
+  }
+
+  @Post(':entryId/resend-invitation')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Resend invitation email',
+    description: 'Resend the invitation email for a pending invitation',
+  })
+  @ApiParam({ name: 'entryId', description: 'Pipeline entry ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Invitation resent',
+    type: PipelineEntryDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Cannot resend - candidate already registered',
+  })
+  @ApiResponse({ status: 404, description: 'Pipeline entry not found' })
+  async resendInvitation(
+    @GetCurrentUserTableId() companyId: number,
+    @Param('entryId', ParseIntPipe) entryId: number,
+  ): Promise<PipelineEntryDto> {
+    return this.pipelineService.resendInvitation(companyId, entryId);
+  }
+
+  @Patch(':entryId/notes')
+  @ApiOperation({
+    summary: 'Update notes',
+    description: 'Update private notes for a pipeline entry',
+  })
+  @ApiParam({ name: 'entryId', description: 'Pipeline entry ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Notes updated',
+    type: PipelineEntryDto,
+  })
+  @ApiResponse({ status: 404, description: 'Pipeline entry not found' })
+  async updateNotes(
+    @GetCurrentUserTableId() companyId: number,
+    @Param('entryId', ParseIntPipe) entryId: number,
+    @Body() dto: UpdateNotesDto,
+  ): Promise<PipelineEntryDto> {
+    return this.pipelineService.updateNotes(companyId, entryId, dto);
+  }
+
+  @Get(':entryId')
   @ApiOperation({
     summary: 'Get single pipeline entry',
-    description: 'Get pipeline entry for a specific developer',
+    description: 'Get pipeline entry by ID',
   })
-  @ApiParam({ name: 'developerId', description: 'Developer ID' })
+  @ApiParam({ name: 'entryId', description: 'Pipeline entry ID' })
   @ApiResponse({
     status: 200,
     description: 'Pipeline entry',
@@ -104,29 +172,29 @@ export class PipelineController {
   })
   @ApiResponse({
     status: 404,
-    description: 'Developer not found in pipeline',
+    description: 'Pipeline entry not found',
   })
   async getPipelineEntry(
     @GetCurrentUserTableId() companyId: number,
-    @Param('developerId', ParseIntPipe) developerId: number,
+    @Param('entryId', ParseIntPipe) entryId: number,
   ): Promise<PipelineEntryDto> {
     const entry = await this.pipelineService.getPipelineEntry(
       companyId,
-      developerId,
+      entryId,
     );
     if (!entry) {
-      throw new NotFoundException('Developer not found in pipeline');
+      throw new NotFoundException('Pipeline entry not found');
     }
     return entry;
   }
 
-  @Patch(':developerId/stage')
+  @Patch(':entryId/stage')
   @ApiOperation({
     summary: 'Update pipeline stage',
     description:
       'Update the pipeline stage for a developer (only HIRED or REJECTED)',
   })
-  @ApiParam({ name: 'developerId', description: 'Developer ID' })
+  @ApiParam({ name: 'entryId', description: 'Pipeline entry ID' })
   @ApiResponse({
     status: 200,
     description: 'Stage updated',
@@ -134,22 +202,22 @@ export class PipelineController {
   })
   @ApiResponse({
     status: 404,
-    description: 'Developer not found in pipeline',
+    description: 'Pipeline entry not found',
   })
   async updateStage(
     @GetCurrentUserTableId() companyId: number,
-    @Param('developerId', ParseIntPipe) developerId: number,
+    @Param('entryId', ParseIntPipe) entryId: number,
     @Body() dto: UpdatePipelineStageDto,
   ): Promise<PipelineEntryDto> {
-    return this.pipelineService.updateStage(companyId, developerId, dto.stage);
+    return this.pipelineService.updateStage(companyId, entryId, dto.stage);
   }
 
-  @Patch(':developerId/tags')
+  @Patch(':entryId/tags')
   @ApiOperation({
     summary: 'Set pipeline entry tags',
     description: 'Set tags for a pipeline entry (replaces all existing tags)',
   })
-  @ApiParam({ name: 'developerId', description: 'Developer ID' })
+  @ApiParam({ name: 'entryId', description: 'Pipeline entry ID' })
   @ApiResponse({
     status: 200,
     description: 'Tags updated',
@@ -157,35 +225,60 @@ export class PipelineController {
   })
   @ApiResponse({
     status: 404,
-    description: 'Developer not found in pipeline or tag not found',
+    description: 'Pipeline entry not found or tag not found',
   })
   async setTags(
     @GetCurrentUserTableId() companyId: number,
-    @Param('developerId', ParseIntPipe) developerId: number,
+    @Param('entryId', ParseIntPipe) entryId: number,
     @Body() dto: SetPipelineTagsDto,
   ): Promise<PipelineEntryDto> {
-    return this.pipelineService.setTags(companyId, developerId, dto.tagIds);
+    return this.pipelineService.setTags(companyId, entryId, dto.tagIds);
   }
 
-  @Delete(':developerId')
+  @Delete(':entryId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Remove from pipeline',
-    description: 'Remove a developer from the company pipeline',
+    description: 'Remove a candidate from the company pipeline',
   })
-  @ApiParam({ name: 'developerId', description: 'Developer ID' })
+  @ApiParam({ name: 'entryId', description: 'Pipeline entry ID' })
   @ApiResponse({
     status: 204,
-    description: 'Developer removed from pipeline',
+    description: 'Candidate removed from pipeline',
   })
   @ApiResponse({
     status: 404,
-    description: 'Developer not found in pipeline',
+    description: 'Pipeline entry not found',
   })
   async removeFromPipeline(
     @GetCurrentUserTableId() companyId: number,
-    @Param('developerId', ParseIntPipe) developerId: number,
+    @Param('entryId', ParseIntPipe) entryId: number,
   ): Promise<void> {
-    return this.pipelineService.removeFromPipeline(companyId, developerId);
+    return this.pipelineService.removeFromPipeline(companyId, entryId);
+  }
+}
+
+// Separate controller for public invitation endpoint
+@ApiTags('Invitations')
+@Controller('invitations')
+export class InvitationPublicController {
+  constructor(private pipelineService: PipelineService) {}
+
+  @Public()
+  @Get(':token')
+  @ApiOperation({
+    summary: 'Get invitation info by token',
+    description: 'Public endpoint to get invitation details for the accept page',
+  })
+  @ApiParam({ name: 'token', description: 'Invitation token' })
+  @ApiResponse({
+    status: 200,
+    description: 'Invitation info',
+    type: InvitationInfoDto,
+  })
+  async getInvitationByToken(
+    @Param('token') token: string,
+  ): Promise<InvitationInfoDto> {
+    return this.pipelineService.getInvitationByToken(token);
   }
 }

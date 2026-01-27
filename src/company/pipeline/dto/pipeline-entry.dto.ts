@@ -53,8 +53,8 @@ export class PipelineEntryDto {
   @ApiProperty({ description: 'Company ID' })
   companyId: number;
 
-  @ApiProperty({ description: 'Developer ID' })
-  developerId: number;
+  @ApiPropertyOptional({ description: 'Developer ID (null for pending invitations)' })
+  developerId?: number;
 
   @ApiProperty({
     description: 'Pipeline stage',
@@ -93,19 +93,42 @@ export class PipelineEntryDto {
   @ApiProperty({ description: 'Entry last updated at' })
   updatedAt: Date;
 
-  // Virtual fields for pending invitations (unregistered candidates)
+  // Invitation fields (populated for pending invitations)
+  @ApiPropertyOptional({
+    description: 'Candidate email (for pending invitations)',
+  })
+  candidateEmail?: string;
+
+  @ApiPropertyOptional({
+    description: 'Invitation token for registration link',
+  })
+  invitationToken?: string;
+
+  @ApiPropertyOptional({
+    description: 'Personal message from company',
+  })
+  invitationMessage?: string;
+
+  @ApiPropertyOptional({
+    description: 'When invitation was sent',
+  })
+  invitedAt?: Date;
+
+  @ApiPropertyOptional({
+    description: 'Token expiration date',
+  })
+  tokenExpiresAt?: Date;
+
+  // Computed fields for pending invitations
   @ApiPropertyOptional({
     description:
       'True if this entry represents a pending invitation (unregistered candidate)',
   })
   isPendingInvitation?: boolean;
 
-  @ApiPropertyOptional({ description: 'Invitation ID if pending invitation' })
-  invitationId?: number;
-
   @ApiPropertyOptional({
-    description: 'Invitation status if pending invitation',
-    enum: ['PENDING', 'EXPIRED'],
+    description: 'Invitation status: PENDING, EXPIRED, or TRACKED',
+    enum: ['PENDING', 'EXPIRED', 'TRACKED'],
   })
-  invitationStatus?: 'PENDING' | 'EXPIRED';
+  invitationStatus?: 'PENDING' | 'EXPIRED' | 'TRACKED';
 }

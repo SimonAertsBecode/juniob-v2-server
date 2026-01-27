@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
-import { PipelineController } from './pipeline.controller';
+import { PipelineController, InvitationPublicController } from './pipeline.controller';
 import { PipelineService } from './pipeline.service';
 
 @Module({
-  controllers: [PipelineController],
+  controllers: [PipelineController, InvitationPublicController],
   providers: [PipelineService],
   exports: [PipelineService],
 })

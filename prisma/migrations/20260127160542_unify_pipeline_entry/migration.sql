@@ -1,5 +1,5 @@
 -- CreateEnum
-CREATE TYPE "InvitationStatus" AS ENUM ('PENDING', 'ACCEPTED', 'EXPIRED', 'TRACKED');
+CREATE TYPE "UserRole" AS ENUM ('DEVELOPER', 'COMPANY');
 
 -- CreateEnum
 CREATE TYPE "AssessmentStatus" AS ENUM ('REGISTERING', 'PROJECTS_SUBMITTED', 'ANALYZING', 'PENDING_ANALYSIS', 'ASSESSED');
@@ -17,17 +17,35 @@ CREATE TYPE "PipelineStage" AS ENUM ('INVITED', 'REGISTERING', 'PROJECTS_SUBMITT
 CREATE TYPE "CreditTransactionType" AS ENUM ('INITIAL', 'PURCHASE', 'UNLOCK_REPORT');
 
 -- CreateEnum
-CREATE TYPE "HireRecommendation" AS ENUM ('STRONG_HIRE', 'HIRE', 'CONSIDER', 'NOT_READY');
+CREATE TYPE "HireRecommendation" AS ENUM ('SAFE_TO_INTERVIEW', 'INTERVIEW_WITH_CAUTION', 'NOT_READY');
 
 -- CreateEnum
-CREATE TYPE "JuniorLevel" AS ENUM ('EARLY_JUNIOR', 'MID_JUNIOR', 'SENIOR_JUNIOR');
+CREATE TYPE "JuniorLevel" AS ENUM ('ABOVE_EXPECTED', 'WITHIN_EXPECTED', 'BELOW_EXPECTED');
+
+-- CreateEnum
+CREATE TYPE "DeveloperType" AS ENUM ('FRONTEND', 'BACKEND', 'FULLSTACK', 'MOBILE');
 
 -- CreateTable
-CREATE TABLE "Company" (
+CREATE TABLE "User" (
     "id" SERIAL NOT NULL,
     "email" TEXT NOT NULL,
     "hashedPassword" TEXT NOT NULL,
     "hashedRefreshToken" TEXT,
+    "role" "UserRole" NOT NULL,
+    "emailVerified" BOOLEAN NOT NULL DEFAULT false,
+    "emailVerificationToken" TEXT,
+    "passwordResetToken" TEXT,
+    "passwordResetExpiresAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Company" (
+    "id" SERIAL NOT NULL,
+    "userId" INTEGER NOT NULL,
     "name" TEXT NOT NULL,
     "industry" TEXT,
     "size" TEXT,
@@ -36,8 +54,7 @@ CREATE TABLE "Company" (
     "vatNumber" TEXT,
     "billingAddress" TEXT,
     "billingCountry" TEXT,
-    "emailVerified" BOOLEAN NOT NULL DEFAULT false,
-    "emailVerificationToken" TEXT,
+    "stripeCustomerId" TEXT,
     "emailNotifications" BOOLEAN NOT NULL DEFAULT true,
     "creditBalance" INTEGER NOT NULL DEFAULT 3,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -49,22 +66,12 @@ CREATE TABLE "Company" (
 -- CreateTable
 CREATE TABLE "Developer" (
     "id" SERIAL NOT NULL,
-    "email" TEXT NOT NULL,
-    "hashedPassword" TEXT NOT NULL,
-    "hashedRefreshToken" TEXT,
+    "userId" INTEGER NOT NULL,
     "firstName" TEXT,
     "lastName" TEXT,
     "location" TEXT,
-    "yearsOfExperience" INTEGER,
-    "degree" TEXT,
-    "university" TEXT,
-    "graduationYear" INTEGER,
-    "githubUsername" TEXT,
-    "githubAccessToken" TEXT,
-    "githubAppInstalled" BOOLEAN NOT NULL DEFAULT false,
     "assessmentStatus" "AssessmentStatus" NOT NULL DEFAULT 'REGISTERING',
-    "emailVerified" BOOLEAN NOT NULL DEFAULT false,
-    "emailVerificationToken" TEXT,
+    "isVisible" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -72,21 +79,53 @@ CREATE TABLE "Developer" (
 );
 
 -- CreateTable
-CREATE TABLE "Invitation" (
+CREATE TABLE "TechnicalProfile" (
     "id" SERIAL NOT NULL,
-    "companyId" INTEGER NOT NULL,
-    "candidateEmail" TEXT NOT NULL,
-    "token" TEXT NOT NULL,
-    "status" "InvitationStatus" NOT NULL DEFAULT 'PENDING',
-    "message" TEXT,
-    "expiresAt" TIMESTAMP(3) NOT NULL,
-    "sentAt" TIMESTAMP(3),
-    "acceptedAt" TIMESTAMP(3),
+    "developerId" INTEGER NOT NULL,
+    "developerType" "DeveloperType" NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-    "developerId" INTEGER,
 
-    CONSTRAINT "Invitation_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "TechnicalProfile_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "TechExperience" (
+    "id" SERIAL NOT NULL,
+    "technicalProfileId" INTEGER NOT NULL,
+    "stackName" TEXT NOT NULL,
+    "months" INTEGER NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "TechExperience_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "GithubAppInstallation" (
+    "id" TEXT NOT NULL,
+    "developerId" INTEGER NOT NULL,
+    "installationId" TEXT NOT NULL,
+    "accessTokenEncrypted" TEXT,
+    "tokenExpiresAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "GithubAppInstallation_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "GithubAppRepository" (
+    "id" TEXT NOT NULL,
+    "installationId" TEXT NOT NULL,
+    "githubRepoId" BIGINT NOT NULL,
+    "repoName" TEXT NOT NULL,
+    "repoFullName" TEXT NOT NULL,
+    "description" TEXT,
+    "isPrivate" BOOLEAN NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "GithubAppRepository_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -97,6 +136,7 @@ CREATE TABLE "TechnicalProject" (
     "githubUrl" TEXT NOT NULL,
     "projectType" "ProjectType" NOT NULL,
     "description" TEXT,
+    "uiUrl" TEXT,
     "techStack" TEXT[],
     "savedAt" TIMESTAMP(3),
     "lockedUntil" TIMESTAMP(3),
@@ -131,18 +171,21 @@ CREATE TABLE "ProjectAnalysis" (
 CREATE TABLE "HiringReport" (
     "id" SERIAL NOT NULL,
     "developerId" INTEGER NOT NULL,
-    "overallScore" INTEGER NOT NULL,
-    "juniorLevel" "JuniorLevel" NOT NULL,
-    "aggregateStrengths" TEXT[],
-    "aggregateWeaknesses" TEXT[],
-    "interviewQuestions" TEXT[],
-    "onboardingAreas" TEXT[],
-    "mentoringNeeds" TEXT[],
-    "techProficiency" JSONB,
-    "redFlags" TEXT[],
-    "growthPotential" TEXT,
     "recommendation" "HireRecommendation" NOT NULL,
+    "recommendationReasons" TEXT[],
+    "juniorLevel" "JuniorLevel" NOT NULL,
+    "juniorLevelContext" TEXT,
+    "technicalBreakdown" JSONB,
+    "riskFlags" TEXT[],
+    "authenticitySignal" TEXT,
+    "authenticityExplanation" TEXT,
+    "interviewQuestions" TEXT[],
+    "overallScore" INTEGER NOT NULL,
+    "scoreBand" TEXT,
     "conclusion" TEXT NOT NULL,
+    "techProficiency" JSONB,
+    "mentoringNeeds" TEXT[],
+    "growthPotential" TEXT,
     "rawAnalysis" JSONB,
     "generatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -180,7 +223,12 @@ CREATE TABLE "UnlockedReport" (
 CREATE TABLE "PipelineEntry" (
     "id" SERIAL NOT NULL,
     "companyId" INTEGER NOT NULL,
-    "developerId" INTEGER NOT NULL,
+    "developerId" INTEGER,
+    "candidateEmail" TEXT,
+    "invitationToken" TEXT,
+    "invitationMessage" TEXT,
+    "invitedAt" TIMESTAMP(3),
+    "tokenExpiresAt" TIMESTAMP(3),
     "stage" "PipelineStage" NOT NULL DEFAULT 'INVITED',
     "notes" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -190,58 +238,74 @@ CREATE TABLE "PipelineEntry" (
 );
 
 -- CreateTable
-CREATE TABLE "Collection" (
+CREATE TABLE "Tag" (
     "id" SERIAL NOT NULL,
     "companyId" INTEGER NOT NULL,
     "name" TEXT NOT NULL,
+    "color" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "Collection_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "Tag_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "CollectionMember" (
+CREATE TABLE "PipelineEntryTag" (
     "id" SERIAL NOT NULL,
-    "collectionId" INTEGER NOT NULL,
-    "developerId" INTEGER NOT NULL,
-    "addedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "pipelineEntryId" INTEGER NOT NULL,
+    "tagId" INTEGER NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "CollectionMember_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "PipelineEntryTag_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Company_email_key" ON "Company"("email");
+CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 
 -- CreateIndex
-CREATE INDEX "Company_email_idx" ON "Company"("email");
+CREATE INDEX "User_email_idx" ON "User"("email");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Developer_email_key" ON "Developer"("email");
+CREATE UNIQUE INDEX "Company_userId_key" ON "Company"("userId");
 
 -- CreateIndex
-CREATE INDEX "Developer_email_idx" ON "Developer"("email");
+CREATE INDEX "Company_userId_idx" ON "Company"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Developer_userId_key" ON "Developer"("userId");
+
+-- CreateIndex
+CREATE INDEX "Developer_userId_idx" ON "Developer"("userId");
 
 -- CreateIndex
 CREATE INDEX "Developer_assessmentStatus_idx" ON "Developer"("assessmentStatus");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Invitation_token_key" ON "Invitation"("token");
+CREATE UNIQUE INDEX "TechnicalProfile_developerId_key" ON "TechnicalProfile"("developerId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Invitation_developerId_key" ON "Invitation"("developerId");
+CREATE INDEX "TechnicalProfile_developerId_idx" ON "TechnicalProfile"("developerId");
 
 -- CreateIndex
-CREATE INDEX "Invitation_companyId_idx" ON "Invitation"("companyId");
+CREATE INDEX "TechExperience_technicalProfileId_idx" ON "TechExperience"("technicalProfileId");
 
 -- CreateIndex
-CREATE INDEX "Invitation_candidateEmail_idx" ON "Invitation"("candidateEmail");
+CREATE UNIQUE INDEX "TechExperience_technicalProfileId_stackName_key" ON "TechExperience"("technicalProfileId", "stackName");
 
 -- CreateIndex
-CREATE INDEX "Invitation_token_idx" ON "Invitation"("token");
+CREATE INDEX "GithubAppInstallation_developerId_idx" ON "GithubAppInstallation"("developerId");
 
 -- CreateIndex
-CREATE INDEX "Invitation_status_idx" ON "Invitation"("status");
+CREATE UNIQUE INDEX "GithubAppInstallation_developerId_installationId_key" ON "GithubAppInstallation"("developerId", "installationId");
+
+-- CreateIndex
+CREATE INDEX "GithubAppRepository_installationId_idx" ON "GithubAppRepository"("installationId");
+
+-- CreateIndex
+CREATE INDEX "GithubAppRepository_repoFullName_idx" ON "GithubAppRepository"("repoFullName");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "GithubAppRepository_installationId_githubRepoId_key" ON "GithubAppRepository"("installationId", "githubRepoId");
 
 -- CreateIndex
 CREATE INDEX "TechnicalProject_developerId_idx" ON "TechnicalProject"("developerId");
@@ -277,10 +341,19 @@ CREATE INDEX "UnlockedReport_developerId_idx" ON "UnlockedReport"("developerId")
 CREATE UNIQUE INDEX "UnlockedReport_companyId_developerId_key" ON "UnlockedReport"("companyId", "developerId");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "PipelineEntry_invitationToken_key" ON "PipelineEntry"("invitationToken");
+
+-- CreateIndex
 CREATE INDEX "PipelineEntry_companyId_idx" ON "PipelineEntry"("companyId");
 
 -- CreateIndex
 CREATE INDEX "PipelineEntry_developerId_idx" ON "PipelineEntry"("developerId");
+
+-- CreateIndex
+CREATE INDEX "PipelineEntry_candidateEmail_idx" ON "PipelineEntry"("candidateEmail");
+
+-- CreateIndex
+CREATE INDEX "PipelineEntry_invitationToken_idx" ON "PipelineEntry"("invitationToken");
 
 -- CreateIndex
 CREATE INDEX "PipelineEntry_stage_idx" ON "PipelineEntry"("stage");
@@ -289,22 +362,40 @@ CREATE INDEX "PipelineEntry_stage_idx" ON "PipelineEntry"("stage");
 CREATE UNIQUE INDEX "PipelineEntry_companyId_developerId_key" ON "PipelineEntry"("companyId", "developerId");
 
 -- CreateIndex
-CREATE INDEX "Collection_companyId_idx" ON "Collection"("companyId");
+CREATE UNIQUE INDEX "PipelineEntry_companyId_candidateEmail_key" ON "PipelineEntry"("companyId", "candidateEmail");
 
 -- CreateIndex
-CREATE INDEX "CollectionMember_collectionId_idx" ON "CollectionMember"("collectionId");
+CREATE INDEX "Tag_companyId_idx" ON "Tag"("companyId");
 
 -- CreateIndex
-CREATE INDEX "CollectionMember_developerId_idx" ON "CollectionMember"("developerId");
+CREATE UNIQUE INDEX "Tag_companyId_name_key" ON "Tag"("companyId", "name");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "CollectionMember_collectionId_developerId_key" ON "CollectionMember"("collectionId", "developerId");
+CREATE INDEX "PipelineEntryTag_pipelineEntryId_idx" ON "PipelineEntryTag"("pipelineEntryId");
+
+-- CreateIndex
+CREATE INDEX "PipelineEntryTag_tagId_idx" ON "PipelineEntryTag"("tagId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PipelineEntryTag_pipelineEntryId_tagId_key" ON "PipelineEntryTag"("pipelineEntryId", "tagId");
 
 -- AddForeignKey
-ALTER TABLE "Invitation" ADD CONSTRAINT "Invitation_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Company" ADD CONSTRAINT "Company_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Invitation" ADD CONSTRAINT "Invitation_developerId_fkey" FOREIGN KEY ("developerId") REFERENCES "Developer"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "Developer" ADD CONSTRAINT "Developer_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TechnicalProfile" ADD CONSTRAINT "TechnicalProfile_developerId_fkey" FOREIGN KEY ("developerId") REFERENCES "Developer"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TechExperience" ADD CONSTRAINT "TechExperience_technicalProfileId_fkey" FOREIGN KEY ("technicalProfileId") REFERENCES "TechnicalProfile"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "GithubAppInstallation" ADD CONSTRAINT "GithubAppInstallation_developerId_fkey" FOREIGN KEY ("developerId") REFERENCES "Developer"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "GithubAppRepository" ADD CONSTRAINT "GithubAppRepository_installationId_fkey" FOREIGN KEY ("installationId") REFERENCES "GithubAppInstallation"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "TechnicalProject" ADD CONSTRAINT "TechnicalProject_developerId_fkey" FOREIGN KEY ("developerId") REFERENCES "Developer"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -331,10 +422,10 @@ ALTER TABLE "PipelineEntry" ADD CONSTRAINT "PipelineEntry_companyId_fkey" FOREIG
 ALTER TABLE "PipelineEntry" ADD CONSTRAINT "PipelineEntry_developerId_fkey" FOREIGN KEY ("developerId") REFERENCES "Developer"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Collection" ADD CONSTRAINT "Collection_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Tag" ADD CONSTRAINT "Tag_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CollectionMember" ADD CONSTRAINT "CollectionMember_collectionId_fkey" FOREIGN KEY ("collectionId") REFERENCES "Collection"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "PipelineEntryTag" ADD CONSTRAINT "PipelineEntryTag_pipelineEntryId_fkey" FOREIGN KEY ("pipelineEntryId") REFERENCES "PipelineEntry"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CollectionMember" ADD CONSTRAINT "CollectionMember_developerId_fkey" FOREIGN KEY ("developerId") REFERENCES "Developer"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "PipelineEntryTag" ADD CONSTRAINT "PipelineEntryTag_tagId_fkey" FOREIGN KEY ("tagId") REFERENCES "Tag"("id") ON DELETE CASCADE ON UPDATE CASCADE;

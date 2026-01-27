@@ -19,13 +19,6 @@ enum UserRole {
   COMPANY
 }
 
-enum InvitationStatus {
-  PENDING // Invitation sent, waiting for developer to register
-  ACCEPTED // Developer registered with this invitation
-  EXPIRED // Invitation link expired (7 days)
-  TRACKED // Company added email to track without sending formal invitation
-}
-
 enum AssessmentStatus {
   REGISTERING // Account created but profile incomplete
   PROJECTS_SUBMITTED // Projects submitted, waiting for analysis
@@ -147,7 +140,6 @@ model Company {
 
   // Relations
   user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  invitations        Invitation[]
   creditTransactions CreditTransaction[]
   pipelineEntries    PipelineEntry[]
   unlockedReports    UnlockedReport[]
@@ -180,7 +172,6 @@ model Developer {
 
   // Relations
   user                User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  invitation          Invitation? // Optional - dev may have registered without invitation
   projects            TechnicalProject[]
   hiringReport        HiringReport?
   pipelineEntries     PipelineEntry[]
@@ -266,39 +257,6 @@ model GithubAppRepository {
   @@unique([installationId, githubRepoId])
   @@index([installationId])
   @@index([repoFullName])
-}
-
-// ============================================
-// INVITATION SYSTEM
-// ============================================
-
-model Invitation {
-  id             Int              @id @default(autoincrement())
-  companyId      Int
-  candidateEmail String
-  token          String           @unique @default(uuid())
-  status         InvitationStatus @default(PENDING)
-
-  // Optional personal message from company
-  message String?
-
-  // Timestamps
-  expiresAt  DateTime // 7 days from creation
-  sentAt     DateTime? // When email was actually sent (null if just tracked)
-  acceptedAt DateTime? // When developer registered
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  company     Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  developer   Developer? @relation(fields: [developerId], references: [id])
-  developerId Int?       @unique // Set when developer registers with this invitation
-
-  @@index([companyId])
-  @@index([candidateEmail])
-  @@index([token])
-  @@index([status])
 }
 
 // ============================================
@@ -477,9 +435,16 @@ model UnlockedReport {
 // ============================================
 
 model PipelineEntry {
-  id          Int @id @default(autoincrement())
+  id          Int  @id @default(autoincrement())
   companyId   Int
-  developerId Int
+  developerId Int? // NOW OPTIONAL - null for unregistered candidates
+
+  // For unregistered candidates (invitation data)
+  candidateEmail    String?   // Email when developerId is null
+  invitationToken   String?   @unique @default(uuid())
+  invitationMessage String?   // Personal message from company
+  invitedAt         DateTime? // When invitation was sent
+  tokenExpiresAt    DateTime? // Token expiration (7 days)
 
   stage PipelineStage @default(INVITED)
 
@@ -491,12 +456,15 @@ model PipelineEntry {
 
   // Relations
   company   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  developer Developer          @relation(fields: [developerId], references: [id], onDelete: Cascade)
+  developer Developer?         @relation(fields: [developerId], references: [id], onDelete: Cascade)
   tags      PipelineEntryTag[]
 
   @@unique([companyId, developerId]) // One entry per company-developer pair
+  @@unique([companyId, candidateEmail]) // One entry per company-email pair
   @@index([companyId])
   @@index([developerId])
+  @@index([candidateEmail])
+  @@index([invitationToken])
   @@index([stage])
 }
 
