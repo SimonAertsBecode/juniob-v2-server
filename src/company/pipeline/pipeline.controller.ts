@@ -19,7 +19,7 @@ import {
   ApiParam,
   ApiQuery,
 } from '@nestjs/swagger';
-import { GetCurrentUserId } from '../../common/decorators';
+import { GetCurrentUserTableId } from '../../common/decorators';
 import { PipelineService } from './pipeline.service';
 import {
   PipelineEntryDto,
@@ -69,7 +69,7 @@ export class PipelineController {
     type: PipelineListDto,
   })
   async getPipeline(
-    @GetCurrentUserId() companyId: number,
+    @GetCurrentUserTableId() companyId: number,
     @Query() query: PipelineQueryDto,
   ): Promise<PipelineListDto> {
     return this.pipelineService.getPipeline(companyId, query);
@@ -86,7 +86,7 @@ export class PipelineController {
     type: PipelineStatsDto,
   })
   async getPipelineStats(
-    @GetCurrentUserId() companyId: number,
+    @GetCurrentUserTableId() companyId: number,
   ): Promise<PipelineStatsDto> {
     return this.pipelineService.getPipelineStats(companyId);
   }
@@ -107,7 +107,7 @@ export class PipelineController {
     description: 'Developer not found in pipeline',
   })
   async getPipelineEntry(
-    @GetCurrentUserId() companyId: number,
+    @GetCurrentUserTableId() companyId: number,
     @Param('developerId', ParseIntPipe) developerId: number,
   ): Promise<PipelineEntryDto> {
     const entry = await this.pipelineService.getPipelineEntry(
@@ -137,7 +137,7 @@ export class PipelineController {
     description: 'Developer not found in pipeline',
   })
   async updateStage(
-    @GetCurrentUserId() companyId: number,
+    @GetCurrentUserTableId() companyId: number,
     @Param('developerId', ParseIntPipe) developerId: number,
     @Body() dto: UpdatePipelineStageDto,
   ): Promise<PipelineEntryDto> {
@@ -160,7 +160,7 @@ export class PipelineController {
     description: 'Developer not found in pipeline or tag not found',
   })
   async setTags(
-    @GetCurrentUserId() companyId: number,
+    @GetCurrentUserTableId() companyId: number,
     @Param('developerId', ParseIntPipe) developerId: number,
     @Body() dto: SetPipelineTagsDto,
   ): Promise<PipelineEntryDto> {
@@ -183,7 +183,7 @@ export class PipelineController {
     description: 'Developer not found in pipeline',
   })
   async removeFromPipeline(
-    @GetCurrentUserId() companyId: number,
+    @GetCurrentUserTableId() companyId: number,
     @Param('developerId', ParseIntPipe) developerId: number,
   ): Promise<void> {
     return this.pipelineService.removeFromPipeline(companyId, developerId);

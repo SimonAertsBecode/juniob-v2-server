@@ -208,6 +208,7 @@ export class PipelineService {
         include: {
           developer: {
             include: {
+              user: true,
               projects: {
                 select: { techStack: true },
               },
@@ -241,7 +242,16 @@ export class PipelineService {
     const unlockedSet = new Set(unlockedReports.map((u) => u.developerId));
 
     const mappedEntries: PipelineEntryDto[] = entries.map((entry) =>
-      this.mapEntryToDto(entry, unlockedSet.has(entry.developerId)),
+      this.mapEntryToDto(
+        {
+          ...entry,
+          developer: {
+            ...entry.developer,
+            email: entry.developer.user.email,
+          },
+        },
+        unlockedSet.has(entry.developerId),
+      ),
     );
 
     // Include pending invitations (unregistered candidates) when:
@@ -367,6 +377,7 @@ export class PipelineService {
             hiringReport: {
               select: { overallScore: true },
             },
+            user: true,
           },
         },
         tags: {
@@ -384,7 +395,16 @@ export class PipelineService {
       },
     });
 
-    return this.mapEntryToDto(updated, !!unlocked);
+    return this.mapEntryToDto(
+      {
+        ...updated,
+        developer: {
+          ...updated.developer,
+          email: updated.developer.user.email,
+        },
+      },
+      !!unlocked,
+    );
   }
 
   /**
@@ -429,6 +449,7 @@ export class PipelineService {
             hiringReport: {
               select: { overallScore: true },
             },
+            user: true,
           },
         },
         tags: {
@@ -455,7 +476,16 @@ export class PipelineService {
       },
     });
 
-    return this.mapEntryToDto(entry, !!unlocked);
+    return this.mapEntryToDto(
+      {
+        ...entry,
+        developer: {
+          ...entry.developer,
+          email: entry.developer.user.email,
+        },
+      },
+      !!unlocked,
+    );
   }
 
   /**

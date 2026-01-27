@@ -17,7 +17,7 @@ import {
   ApiParam,
   ApiQuery,
 } from '@nestjs/swagger';
-import { GetCurrentUserId } from '../../common/decorators';
+import { GetCurrentUserTableId } from '../../common/decorators';
 import { ReportService } from './report.service';
 import {
   ReportPreviewDto,
@@ -52,7 +52,7 @@ export class ReportController {
     description: 'Invalid developer IDs or less than 2 IDs provided',
   })
   async getBatchReports(
-    @GetCurrentUserId() companyId: number,
+    @GetCurrentUserTableId() companyId: number,
     @Query('developerIds') developerIdsStr: string,
   ): Promise<BatchReportsDto> {
     if (!developerIdsStr) {
@@ -96,7 +96,7 @@ export class ReportController {
     description: 'Developer assessment not complete',
   })
   async getPreview(
-    @GetCurrentUserId() companyId: number,
+    @GetCurrentUserTableId() companyId: number,
     @Param('developerId', ParseIntPipe) developerId: number,
   ): Promise<ReportPreviewDto> {
     return this.reportService.getReportPreview(companyId, developerId);
@@ -121,7 +121,7 @@ export class ReportController {
     description: 'Developer not found',
   })
   async unlockReport(
-    @GetCurrentUserId() companyId: number,
+    @GetCurrentUserTableId() companyId: number,
     @Param('developerId', ParseIntPipe) developerId: number,
   ): Promise<UnlockReportResponseDto> {
     return this.reportService.unlockReport(companyId, developerId);
@@ -144,7 +144,7 @@ export class ReportController {
     description: 'Developer not found',
   })
   async getFullReport(
-    @GetCurrentUserId() companyId: number,
+    @GetCurrentUserTableId() companyId: number,
     @Param('developerId', ParseIntPipe) developerId: number,
   ): Promise<FullReportDto> {
     return this.reportService.getFullReport(companyId, developerId);
@@ -162,7 +162,7 @@ export class ReportController {
     description: 'Developer not found',
   })
   async getReport(
-    @GetCurrentUserId() companyId: number,
+    @GetCurrentUserTableId() companyId: number,
     @Param('developerId', ParseIntPipe) developerId: number,
   ): Promise<{
     type: 'preview' | 'full';
@@ -179,7 +179,7 @@ export class ReportController {
     description: 'Unlock status',
   })
   async checkUnlockStatus(
-    @GetCurrentUserId() companyId: number,
+    @GetCurrentUserTableId() companyId: number,
     @Param('developerId', ParseIntPipe) developerId: number,
   ): Promise<{ isUnlocked: boolean }> {
     const isUnlocked = await this.reportService.isReportUnlocked(

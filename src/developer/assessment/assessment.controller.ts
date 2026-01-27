@@ -25,8 +25,8 @@ import {
   ProjectListResponseDto,
   AssessmentStatusDto,
 } from './dto';
-import { GetCurrentUserId } from '../../common/decorators';
 import { AtGuard } from '../../common/guards';
+import { GetCurrentUserTableId } from 'src/common/decorators';
 
 @ApiTags('Developer Assessment')
 @Controller('developer/assessment')
@@ -49,7 +49,7 @@ export class AssessmentController {
     type: AssessmentStatusDto,
   })
   async getAssessmentStatus(
-    @GetCurrentUserId() developerId: number,
+    @GetCurrentUserTableId() developerId: number,
   ): Promise<AssessmentStatusDto> {
     return this.assessmentService.getAssessmentStatus(developerId);
   }
@@ -64,7 +64,7 @@ export class AssessmentController {
   @ApiResponse({ status: 200, description: 'Regeneration triggered' })
   @ApiResponse({ status: 400, description: 'No projects to analyze' })
   async triggerReportRegeneration(
-    @GetCurrentUserId() developerId: number,
+    @GetCurrentUserTableId() developerId: number,
   ): Promise<{ message: string }> {
     await this.assessmentService.triggerReportRegeneration(developerId);
     return {
@@ -85,7 +85,7 @@ export class AssessmentController {
     type: ProjectListResponseDto,
   })
   async getProjects(
-    @GetCurrentUserId() developerId: number,
+    @GetCurrentUserTableId() developerId: number,
   ): Promise<ProjectListResponseDto> {
     return this.assessmentService.getProjects(developerId);
   }
@@ -100,7 +100,7 @@ export class AssessmentController {
   })
   @ApiResponse({ status: 404, description: 'Project not found' })
   async getProject(
-    @GetCurrentUserId() developerId: number,
+    @GetCurrentUserTableId() developerId: number,
     @Param('id', ParseIntPipe) projectId: number,
   ): Promise<ProjectResponseDto> {
     return this.assessmentService.getProject(developerId, projectId);
@@ -127,7 +127,7 @@ export class AssessmentController {
     description: 'Repository already added',
   })
   async createProject(
-    @GetCurrentUserId() developerId: number,
+    @GetCurrentUserTableId() developerId: number,
     @Body() dto: CreateProjectDto,
   ): Promise<ProjectResponseDto> {
     return this.assessmentService.createProject(developerId, dto);
@@ -147,7 +147,7 @@ export class AssessmentController {
   })
   @ApiResponse({ status: 404, description: 'Project not found' })
   async updateProjectName(
-    @GetCurrentUserId() developerId: number,
+    @GetCurrentUserTableId() developerId: number,
     @Param('id', ParseIntPipe) projectId: number,
     @Body('name') name: string,
   ): Promise<ProjectResponseDto> {
@@ -170,7 +170,7 @@ export class AssessmentController {
   @ApiResponse({ status: 403, description: 'Project is locked' })
   @ApiResponse({ status: 404, description: 'Project not found' })
   async deleteProject(
-    @GetCurrentUserId() developerId: number,
+    @GetCurrentUserTableId() developerId: number,
     @Param('id', ParseIntPipe) projectId: number,
   ): Promise<void> {
     return this.assessmentService.deleteProject(developerId, projectId);

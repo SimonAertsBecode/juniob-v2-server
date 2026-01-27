@@ -16,16 +16,19 @@ export class NotificationService {
   /**
    * Notify companies when a developer they're tracking completes assessment
    */
-  async notifyCompaniesOfAssessmentComplete(developerId: number): Promise<void> {
+  async notifyCompaniesOfAssessmentComplete(
+    developerId: number,
+  ): Promise<void> {
     const developer = await this.prisma.developer.findUnique({
       where: { id: developerId },
+      include: { user: { select: { email: true } } },
     });
 
     if (!developer) return;
 
     const developerName =
       [developer.firstName, developer.lastName].filter(Boolean).join(' ') ||
-      developer.email;
+      developer.user.email;
 
     // Find all companies tracking this developer (via pipeline or invitations)
     const pipelineEntries = await this.prisma.pipelineEntry.findMany({
@@ -38,7 +41,7 @@ export class NotificationService {
       include: {
         company: {
           select: {
-            email: true,
+            user: { select: { email: true } },
             name: true,
             emailNotifications: true,
           },
@@ -51,14 +54,14 @@ export class NotificationService {
       if (entry.company.emailNotifications) {
         try {
           await this.emailService.sendAssessmentCompleteEmail(
-            entry.company.email,
+            entry.company.user.email,
             entry.company.name,
             developerName,
-            developer.email,
+            developer.user.email,
           );
         } catch (error) {
           console.error(
-            `Failed to send assessment complete email to ${entry.company.email}:`,
+            `Failed to send assessment complete email to ${entry.company.user.email}:`,
             error,
           );
         }
@@ -74,7 +77,7 @@ export class NotificationService {
       where: { id: projectId },
       include: {
         analysis: true,
-        developer: true,
+        developer: { include: { user: { select: { email: true } } } },
       },
     });
 
@@ -89,14 +92,14 @@ export class NotificationService {
 
     try {
       await this.emailService.sendProjectAnalysisCompleteEmail(
-        project.developer.email,
+        project.developer.user.email,
         developerName,
         project.name,
         project.analysis.score,
       );
     } catch (error) {
       console.error(
-        `Failed to send project analysis email to ${project.developer.email}:`,
+        `Failed to send project analysis email to ${project.developer.user.email}:`,
         error,
       );
     }
@@ -116,6 +119,7 @@ export class NotificationService {
             analysis: true,
           },
         },
+        user: true,
       },
     });
 
@@ -138,14 +142,14 @@ export class NotificationService {
 
     try {
       await this.emailService.sendAllProjectsAnalyzedEmail(
-        developer.email,
+        developer.user.email,
         developerName,
         completedProjects.length,
         averageScore,
       );
     } catch (error) {
       console.error(
-        `Failed to send all projects analyzed email to ${developer.email}:`,
+        `Failed to send all projects analyzed email to ${developer.user.email}:`,
         error,
       );
     }
@@ -159,7 +163,10 @@ export class NotificationService {
     companyId: number,
   ): Promise<void> {
     const [developer, company] = await Promise.all([
-      this.prisma.developer.findUnique({ where: { id: developerId } }),
+      this.prisma.developer.findUnique({
+        where: { id: developerId },
+        include: { user: { select: { email: true } } },
+      }),
       this.prisma.company.findUnique({ where: { id: companyId } }),
     ]);
 
@@ -171,13 +178,13 @@ export class NotificationService {
 
     try {
       await this.emailService.sendReportUnlockedEmail(
-        developer.email,
+        developer.user.email,
         developerName,
         company.name,
       );
     } catch (error) {
       console.error(
-        `Failed to send report unlocked email to ${developer.email}:`,
+        `Failed to send report unlocked email to ${developer.user.email}:`,
         error,
       );
     }
@@ -189,6 +196,7 @@ export class NotificationService {
   async sendLowCreditsWarning(companyId: number): Promise<void> {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
+      include: { user: { select: { email: true } } },
     });
 
     if (!company || !company.emailNotifications) return;
@@ -198,13 +206,13 @@ export class NotificationService {
 
     try {
       await this.emailService.sendLowCreditsWarningEmail(
-        company.email,
+        company.user.email,
         company.name,
         company.creditBalance,
       );
     } catch (error) {
       console.error(
-        `Failed to send low credits warning to ${company.email}:`,
+        `Failed to send low credits warning to ${company.user.email}:`,
         error,
       );
     }
@@ -216,19 +224,20 @@ export class NotificationService {
   async sendCompanyWelcome(companyId: number): Promise<void> {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
+      include: { user: { select: { email: true } } },
     });
 
     if (!company) return;
 
     try {
       await this.emailService.sendWelcomeEmail(
-        company.email,
+        company.user.email,
         company.name,
         true,
       );
     } catch (error) {
       console.error(
-        `Failed to send welcome email to company ${company.email}:`,
+        `Failed to send welcome email to company ${company.user.email}:`,
         error,
       );
     }
@@ -240,6 +249,7 @@ export class NotificationService {
   async sendDeveloperWelcome(developerId: number): Promise<void> {
     const developer = await this.prisma.developer.findUnique({
       where: { id: developerId },
+      include: { user: { select: { email: true } } },
     });
 
     if (!developer) return;
@@ -249,10 +259,14 @@ export class NotificationService {
       'Developer';
 
     try {
-      await this.emailService.sendWelcomeEmail(developer.email, name, false);
+      await this.emailService.sendWelcomeEmail(
+        developer.user.email,
+        name,
+        false,
+      );
     } catch (error) {
       console.error(
-        `Failed to send welcome email to developer ${developer.email}:`,
+        `Failed to send welcome email to developer ${developer.user.email}:`,
         error,
       );
     }

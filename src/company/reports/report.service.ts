@@ -57,6 +57,7 @@ export class ReportService {
     const developer = await this.prisma.developer.findUnique({
       where: { id: developerId },
       include: {
+        user: true,
         projects: {
           select: {
             id: true,
@@ -115,7 +116,7 @@ export class ReportService {
 
     return {
       developerId: developer.id,
-      email: developer.email,
+      email: developer.user.email,
       firstName: developer.firstName,
       lastName: developer.lastName,
       overallScore: developer.hiringReport.overallScore,
@@ -246,6 +247,7 @@ export class ReportService {
     const developer = await this.prisma.developer.findUnique({
       where: { id: developerId },
       include: {
+        user: true,
         projects: {
           include: {
             analysis: true,
@@ -277,7 +279,7 @@ export class ReportService {
     // Map developer profile
     const developerProfile: DeveloperProfileDto = {
       id: developer.id,
-      email: developer.email,
+      email: developer.user.email,
       firstName: developer.firstName,
       lastName: developer.lastName,
       location: developer.location,

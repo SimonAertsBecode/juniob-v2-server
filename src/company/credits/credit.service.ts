@@ -79,7 +79,7 @@ export class CreditService {
   ): Promise<CheckoutSessionDto> {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
-      select: { email: true, name: true },
+      select: { user: { select: { email: true } }, name: true },
     });
 
     if (!company) {
@@ -94,7 +94,7 @@ export class CreditService {
     const session = await this.stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'payment',
-      customer_email: company.email,
+      customer_email: company.user.email,
       client_reference_id: companyId.toString(),
       metadata: {
         companyId: companyId.toString(),

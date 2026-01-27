@@ -25,7 +25,7 @@ import {
   PurchaseCreditsDto,
   CheckoutSessionDto,
 } from './dto';
-import { GetCurrentUserId, Public } from '../../common/decorators';
+import { GetCurrentUserTableId, Public } from '../../common/decorators';
 
 @ApiTags('Company Credits')
 @Controller('company/credits')
@@ -41,7 +41,7 @@ export class CreditController {
     type: CreditBalanceDto,
   })
   async getBalance(
-    @GetCurrentUserId() companyId: number,
+    @GetCurrentUserTableId() companyId: number,
   ): Promise<CreditBalanceDto> {
     return this.creditService.getBalance(companyId);
   }
@@ -57,7 +57,7 @@ export class CreditController {
     type: CreditHistoryDto,
   })
   async getHistory(
-    @GetCurrentUserId() companyId: number,
+    @GetCurrentUserTableId() companyId: number,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ): Promise<CreditHistoryDto> {
@@ -81,7 +81,7 @@ export class CreditController {
   })
   @ApiResponse({ status: 400, description: 'Invalid credit package' })
   async purchaseCredits(
-    @GetCurrentUserId() companyId: number,
+    @GetCurrentUserTableId() companyId: number,
     @Body() dto: PurchaseCreditsDto,
   ): Promise<CheckoutSessionDto> {
     return this.creditService.createCheckoutSession(companyId, dto.credits);

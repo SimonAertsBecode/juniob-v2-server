@@ -11,7 +11,7 @@ import {
   UpdateCompanyProfileDto,
   ChangePasswordDto,
 } from './dto';
-import { GetCurrentUserId } from 'src/common/decorators';
+import { GetCurrentUserTableId } from 'src/common/decorators';
 
 @ApiTags('Company Profile')
 @ApiBearerAuth()
@@ -23,7 +23,7 @@ export class ProfileController {
   @ApiOperation({ summary: 'Get company profile' })
   @ApiResponse({ status: 200, type: CompanyProfileDto })
   async getProfile(
-    @GetCurrentUserId() companyId: number,
+    @GetCurrentUserTableId() companyId: number,
   ): Promise<CompanyProfileDto> {
     return this.profileService.getProfile(companyId);
   }
@@ -32,7 +32,7 @@ export class ProfileController {
   @ApiOperation({ summary: 'Update company profile' })
   @ApiResponse({ status: 200, type: CompanyProfileDto })
   async updateProfile(
-    @GetCurrentUserId() companyId: number,
+    @GetCurrentUserTableId() companyId: number,
     @Body() dto: UpdateCompanyProfileDto,
   ): Promise<CompanyProfileDto> {
     return this.profileService.updateProfile(companyId, dto);
@@ -43,7 +43,7 @@ export class ProfileController {
   @ApiResponse({ status: 200, description: 'Password changed successfully' })
   @ApiResponse({ status: 400, description: 'Current password is incorrect' })
   async changePassword(
-    @GetCurrentUserId() companyId: number,
+    @GetCurrentUserTableId() companyId: number,
     @Body() dto: ChangePasswordDto,
   ): Promise<{ message: string }> {
     return this.profileService.changePassword(companyId, dto);

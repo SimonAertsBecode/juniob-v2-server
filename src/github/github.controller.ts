@@ -12,7 +12,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import { GetCurrentUserId } from '../common/decorators';
+import { GetCurrentUserId, GetCurrentUserTableId } from '../common/decorators';
 import { GithubAppService } from './github-app.service';
 import {
   SetInstallationDto,
@@ -38,7 +38,7 @@ export class GithubController {
     type: GithubStatusResponseDto,
   })
   async getStatus(
-    @GetCurrentUserId() developerId: number,
+    @GetCurrentUserTableId() developerId: number,
   ): Promise<GithubStatusResponseDto> {
     const isConnected =
       await this.githubAppService.hasInstallation(developerId);
@@ -76,7 +76,7 @@ export class GithubController {
     description: 'Failed to set up installation',
   })
   async setInstallation(
-    @GetCurrentUserId() developerId: number,
+    @GetCurrentUserTableId() developerId: number,
     @Body() dto: SetInstallationDto,
   ): Promise<GithubInstallationResponseDto> {
     const result = await this.githubAppService.setInstallation(
@@ -99,7 +99,7 @@ export class GithubController {
     type: GithubRepositoryListResponseDto,
   })
   async getRepositories(
-    @GetCurrentUserId() developerId: number,
+    @GetCurrentUserTableId() developerId: number,
   ): Promise<GithubRepositoryListResponseDto> {
     const repositories =
       await this.githubAppService.getAuthorizedRepositories(developerId);
@@ -127,7 +127,7 @@ export class GithubController {
     description: 'GitHub App not installed',
   })
   async syncRepositories(
-    @GetCurrentUserId() developerId: number,
+    @GetCurrentUserTableId() developerId: number,
   ): Promise<GithubRepositoryListResponseDto> {
     const repositories =
       await this.githubAppService.syncRepositories(developerId);
@@ -149,7 +149,7 @@ export class GithubController {
     description: 'GitHub App disconnected',
   })
   async disconnect(
-    @GetCurrentUserId() developerId: number,
+    @GetCurrentUserTableId() developerId: number,
   ): Promise<{ success: boolean; message: string }> {
     await this.githubAppService.removeInstallation(developerId);
 

@@ -57,12 +57,14 @@ export class InvitationService {
     }
 
     // Check if developer already exists
-    const developer = await this.prisma.developer.findUnique({
-      where: { email },
-    });
+    const developerUser = await this.getUserIdByEmail(email);
 
     // For non-registered developers, we always send an email since that's the only way to reach them
-    const shouldSendEmail = dto.sendEmail || !developer;
+    const shouldSendEmail = dto.sendEmail || !developerUser;
+
+    const developer = await this.prisma.developer.findUnique({
+      where: { userId: developerUser.id },
+    });
 
     // Create invitation (expires in 7 days)
     const expiresAt = new Date();
@@ -156,9 +158,11 @@ export class InvitationService {
   ): Promise<DeveloperStatusDto> {
     const normalizedEmail = email.toLowerCase();
 
+    const user = await this.getUserIdByEmail(email);
+
     // Check if developer exists
     const developer = await this.prisma.developer.findUnique({
-      where: { email: normalizedEmail },
+      where: { userId: user.id },
       include: {
         projects: {
           include: { analysis: true },
@@ -235,7 +239,7 @@ export class InvitationService {
         developer.firstName && developer.lastName
           ? `${developer.firstName} ${developer.lastName}`
           : developer.firstName || undefined,
-      email: developer.email,
+      email: user.email,
       isUnlocked: !!unlocked,
       isTracked: !!invitation,
       overallScore: developer.hiringReport?.overallScore,
@@ -393,5 +397,13 @@ export class InvitationService {
       default:
         return 'Unknown status';
     }
+  }
+
+  private async getUserIdByEmail(userEmail: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { email: userEmail },
+    });
+
+    return user || null;
   }
 }

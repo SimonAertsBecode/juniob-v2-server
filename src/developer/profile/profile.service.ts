@@ -34,6 +34,7 @@ export class ProfileService {
     const developer = await this.prisma.developer.findUnique({
       where: { id: developerId },
       include: {
+        user: true,
         technicalProfile: {
           include: {
             techExperiences: {
@@ -64,7 +65,7 @@ export class ProfileService {
 
     return {
       developerId: developer.id,
-      email: developer.email,
+      email: developer.user.email,
       firstName: developer.firstName,
       lastName: developer.lastName,
       location: developer.location,

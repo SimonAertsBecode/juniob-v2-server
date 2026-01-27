@@ -18,6 +18,14 @@ export class ProfileService {
   async getProfile(companyId: number): Promise<CompanyProfileDto> {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
+      include: {
+        user: {
+          select: {
+            email: true,
+            emailVerified: true,
+          },
+        },
+      },
     });
 
     if (!company) {
@@ -26,7 +34,7 @@ export class ProfileService {
 
     return {
       id: company.id,
-      email: company.email,
+      email: company.user.email,
       name: company.name,
       industry: company.industry ?? undefined,
       size: company.size ?? undefined,
@@ -35,7 +43,7 @@ export class ProfileService {
       vatNumber: company.vatNumber ?? undefined,
       billingAddress: company.billingAddress ?? undefined,
       billingCountry: company.billingCountry ?? undefined,
-      emailVerified: company.emailVerified,
+      emailVerified: company.user.emailVerified,
       emailNotifications: company.emailNotifications,
       creditBalance: company.creditBalance,
       createdAt: company.createdAt,
@@ -73,11 +81,12 @@ export class ProfileService {
           emailNotifications: dto.emailNotifications,
         }),
       },
+      include: { user: true },
     });
 
     return {
       id: updated.id,
-      email: updated.email,
+      email: updated.user.email,
       name: updated.name,
       industry: updated.industry ?? undefined,
       size: updated.size ?? undefined,
@@ -86,7 +95,7 @@ export class ProfileService {
       vatNumber: updated.vatNumber ?? undefined,
       billingAddress: updated.billingAddress ?? undefined,
       billingCountry: updated.billingCountry ?? undefined,
-      emailVerified: updated.emailVerified,
+      emailVerified: updated.user.emailVerified,
       emailNotifications: updated.emailNotifications,
       creditBalance: updated.creditBalance,
       createdAt: updated.createdAt,
@@ -99,6 +108,7 @@ export class ProfileService {
   ): Promise<{ message: string }> {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
+      include: { user: true },
     });
 
     if (!company) {
@@ -107,7 +117,7 @@ export class ProfileService {
 
     // Verify current password
     const isPasswordValid = await argon2.verify(
-      company.hashedPassword,
+      company.user.hashedPassword,
       dto.currentPassword,
     );
 
@@ -119,11 +129,27 @@ export class ProfileService {
     const hashedPassword = await argon2.hash(dto.newPassword);
 
     // Update password
-    await this.prisma.company.update({
-      where: { id: companyId },
+    const user = await this.getUserByCompanyTableId(companyId);
+    await this.prisma.user.update({
+      where: { id: user.id },
       data: { hashedPassword },
     });
 
     return { message: 'Password changed successfully' };
+  }
+
+  private async getUserByCompanyTableId(companyId: number) {
+    const table = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        userId: true,
+      },
+    });
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: table.userId },
+    });
+
+    return user ?? null;
   }
 }

@@ -7,7 +7,6 @@ import {
   Body,
   Param,
   ParseIntPipe,
-  UseGuards,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
@@ -19,7 +18,7 @@ import {
 } from '@nestjs/swagger';
 import { TagService } from './tag.service';
 import { TagDto, TagListDto, CreateTagDto, UpdateTagDto } from './dto';
-import { GetCurrentUser, GetCurrentUserId } from 'src/common/decorators';
+import { GetCurrentUserTableId } from 'src/common/decorators';
 
 @ApiTags('Company Tags')
 @ApiBearerAuth()
@@ -30,8 +29,10 @@ export class TagController {
   @Get()
   @ApiOperation({ summary: 'Get all tags for the company' })
   @ApiResponse({ status: 200, description: 'List of tags', type: TagListDto })
-  async getTags(@GetCurrentUserId() userId: number): Promise<TagListDto> {
-    return this.tagService.getTags(userId);
+  async getTags(
+    @GetCurrentUserTableId() companyId: number,
+  ): Promise<TagListDto> {
+    return this.tagService.getTags(companyId);
   }
 
   @Get(':id')
@@ -39,10 +40,10 @@ export class TagController {
   @ApiResponse({ status: 200, description: 'Tag details', type: TagDto })
   @ApiResponse({ status: 404, description: 'Tag not found' })
   async getTag(
-    @GetCurrentUserId() userId: number,
+    @GetCurrentUserTableId() companyId: number,
     @Param('id', ParseIntPipe) tagId: number,
   ): Promise<TagDto> {
-    return this.tagService.getTag(userId, tagId);
+    return this.tagService.getTag(companyId, tagId);
   }
 
   @Post()
@@ -53,10 +54,10 @@ export class TagController {
     description: 'Tag with this name already exists',
   })
   async createTag(
-    @GetCurrentUserId() userId: number,
+    @GetCurrentUserTableId() companyId: number,
     @Body() dto: CreateTagDto,
   ): Promise<TagDto> {
-    return this.tagService.createTag(userId, dto);
+    return this.tagService.createTag(companyId, dto);
   }
 
   @Patch(':id')
@@ -68,11 +69,11 @@ export class TagController {
     description: 'Tag with this name already exists',
   })
   async updateTag(
-    @GetCurrentUserId() userId: number,
+    @GetCurrentUserTableId() companyId: number,
     @Param('id', ParseIntPipe) tagId: number,
     @Body() dto: UpdateTagDto,
   ): Promise<TagDto> {
-    return this.tagService.updateTag(userId, tagId, dto);
+    return this.tagService.updateTag(companyId, tagId, dto);
   }
 
   @Delete(':id')
@@ -81,9 +82,9 @@ export class TagController {
   @ApiResponse({ status: 204, description: 'Tag deleted' })
   @ApiResponse({ status: 404, description: 'Tag not found' })
   async deleteTag(
-    @GetCurrentUserId() userId: number,
+    @GetCurrentUserTableId() companyId: number,
     @Param('id', ParseIntPipe) tagId: number,
   ): Promise<void> {
-    return this.tagService.deleteTag(userId, tagId);
+    return this.tagService.deleteTag(companyId, tagId);
   }
 }

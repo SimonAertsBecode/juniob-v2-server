@@ -18,7 +18,6 @@ import {
   ApiBearerAuth,
   ApiParam,
 } from '@nestjs/swagger';
-import { GetCurrentUserId } from '../../common/decorators';
 import { ProfileService } from './profile.service';
 import {
   ProfileResponseDto,
@@ -34,6 +33,7 @@ import {
   UpdateVisibilityDto,
   VisibilityResponseDto,
 } from './dto';
+import { GetCurrentUserTableId } from 'src/common/decorators';
 
 @ApiTags('Developer - Profile')
 @ApiBearerAuth()
@@ -49,7 +49,7 @@ export class ProfileController {
     type: ProfileResponseDto,
   })
   async getProfile(
-    @GetCurrentUserId() developerId: number,
+    @GetCurrentUserTableId() developerId: number,
   ): Promise<ProfileResponseDto> {
     return this.profileService.getProfile(developerId);
   }
@@ -62,7 +62,7 @@ export class ProfileController {
     type: ProfileResponseDto,
   })
   async updateProfile(
-    @GetCurrentUserId() developerId: number,
+    @GetCurrentUserTableId() developerId: number,
     @Body() dto: UpdateProfileDto,
   ): Promise<ProfileResponseDto> {
     return this.profileService.updateProfile(developerId, dto);
@@ -82,7 +82,7 @@ export class ProfileController {
     description: 'Technical profile not found',
   })
   async getTechnicalProfile(
-    @GetCurrentUserId() developerId: number,
+    @GetCurrentUserTableId() developerId: number,
   ): Promise<TechnicalProfileResponseDto | null> {
     return this.profileService.getTechnicalProfile(developerId);
   }
@@ -102,7 +102,7 @@ export class ProfileController {
     description: 'Invalid data (minimum 3 technologies required)',
   })
   async updateTechnicalProfile(
-    @GetCurrentUserId() developerId: number,
+    @GetCurrentUserTableId() developerId: number,
     @Body() dto: UpdateTechnicalProfileDto,
   ): Promise<TechnicalProfileResponseDto> {
     return this.profileService.updateTechnicalProfile(developerId, dto);
@@ -116,7 +116,7 @@ export class ProfileController {
     type: VisibilityResponseDto,
   })
   async getVisibility(
-    @GetCurrentUserId() developerId: number,
+    @GetCurrentUserTableId() developerId: number,
   ): Promise<VisibilityResponseDto> {
     return this.profileService.getVisibility(developerId);
   }
@@ -133,7 +133,7 @@ export class ProfileController {
     description: 'Cannot toggle visibility (requirements not met)',
   })
   async updateVisibility(
-    @GetCurrentUserId() developerId: number,
+    @GetCurrentUserTableId() developerId: number,
     @Body() dto: UpdateVisibilityDto,
   ): Promise<VisibilityResponseDto> {
     return this.profileService.updateVisibility(developerId, dto.isVisible);
@@ -173,7 +173,7 @@ export class ProfileController {
     type: [TechExperienceDto],
   })
   async getExperiences(
-    @GetCurrentUserId() developerId: number,
+    @GetCurrentUserTableId() developerId: number,
   ): Promise<TechExperienceDto[]> {
     return this.profileService.getExperiences(developerId);
   }
@@ -191,7 +191,7 @@ export class ProfileController {
     description: 'Invalid stack name',
   })
   async setExperience(
-    @GetCurrentUserId() developerId: number,
+    @GetCurrentUserTableId() developerId: number,
     @Body() dto: SetExperienceDto,
   ): Promise<TechExperienceDto[]> {
     console.log(dto, 'setExperience');
@@ -210,7 +210,7 @@ export class ProfileController {
     description: 'Invalid stack names',
   })
   async setExperiencesBatch(
-    @GetCurrentUserId() developerId: number,
+    @GetCurrentUserTableId() developerId: number,
     @Body() dto: SetExperienceBatchDto,
   ): Promise<TechExperienceDto[]> {
     console.log(dto, 'setExperiencesBatch');
@@ -237,7 +237,7 @@ export class ProfileController {
     description: 'Experience not found',
   })
   async removeExperience(
-    @GetCurrentUserId() developerId: number,
+    @GetCurrentUserTableId() developerId: number,
     @Param('stackName') stackName: string,
   ): Promise<TechExperienceDto[]> {
     return this.profileService.removeExperience(developerId, stackName);

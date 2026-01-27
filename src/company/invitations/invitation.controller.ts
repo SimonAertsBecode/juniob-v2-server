@@ -27,7 +27,7 @@ import {
   InvitationStatusDto,
   DeveloperStatusDto,
 } from './dto';
-import { GetCurrentUserId } from '../../common/decorators';
+import { GetCurrentUserTableId } from '../../common/decorators';
 import { AtGuard } from '../../common/guards';
 
 @ApiTags('Company Invitations')
@@ -47,7 +47,7 @@ export class InvitationController {
   })
   @ApiResponse({ status: 409, description: 'Invitation already exists' })
   async createInvitation(
-    @GetCurrentUserId() companyId: number,
+    @GetCurrentUserTableId() companyId: number,
     @Body() dto: CreateInvitationDto,
   ): Promise<InvitationResponseDto> {
     return this.invitationService.createInvitation(companyId, dto);
@@ -69,7 +69,7 @@ export class InvitationController {
     type: InvitationListDto,
   })
   async getInvitations(
-    @GetCurrentUserId() companyId: number,
+    @GetCurrentUserTableId() companyId: number,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
     @Query('status') status?: InvitationStatusDto,
@@ -95,7 +95,7 @@ export class InvitationController {
     type: DeveloperStatusDto,
   })
   async getDeveloperStatus(
-    @GetCurrentUserId() companyId: number,
+    @GetCurrentUserTableId() companyId: number,
     @Param('email') email: string,
   ): Promise<DeveloperStatusDto> {
     return this.invitationService.getDeveloperStatus(companyId, email);
@@ -116,7 +116,7 @@ export class InvitationController {
   })
   @ApiResponse({ status: 404, description: 'Invitation not found' })
   async resendInvitation(
-    @GetCurrentUserId() companyId: number,
+    @GetCurrentUserTableId() companyId: number,
     @Param('id', ParseIntPipe) invitationId: number,
   ): Promise<InvitationResponseDto> {
     return this.invitationService.resendInvitation(companyId, invitationId);
@@ -133,7 +133,7 @@ export class InvitationController {
   })
   @ApiResponse({ status: 404, description: 'Invitation not found' })
   async deleteInvitation(
-    @GetCurrentUserId() companyId: number,
+    @GetCurrentUserTableId() companyId: number,
     @Param('id', ParseIntPipe) invitationId: number,
   ): Promise<void> {
     return this.invitationService.deleteInvitation(companyId, invitationId);
